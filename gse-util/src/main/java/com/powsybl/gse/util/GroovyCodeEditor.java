@@ -236,31 +236,29 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         try {
             int lineNumberStart = getCodeZone().getLineOfOffset(start);
             int lineNumberEnd = getCodeZone().getLineOfOffset(end);
-            for (int i = lineNumberStart ; i <= lineNumberEnd ; i++) {
+            for (int i = lineNumberStart; i <= lineNumberEnd; i++) {
                 int lineIndexStart = getCodeZone().getLineStartOffset(i);
                 if (getCodeZone().getText(lineIndexStart, 2).equals("//")) {
                     getCodeZone().replaceRange("", lineIndexStart, lineIndexStart + 2);
-                }
-                else {
+                } else {
                     getCodeZone().replaceRange("//", lineIndexStart, lineIndexStart);
                 }
             }
+        } catch (BadLocationException e) {
+          return;
         }
-        catch (BadLocationException e) {}
     }
 
-    public void deleteWord(int start){
+    public void deleteWord(int start) {
         try {
             int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
             String[] words = getCodeZone().getText(start, lineIndexEnd - start).split("[\\s|.|(|)|/|\"|\'|=|+|-|*|{|}]");
             if (words.length != 0 && words[0].length() != 0) {
                 getCodeZone().replaceRange("", start, start + words[0].length());
-            }
-            else {
+            } else {
                 getCodeZone().replaceRange("", start, start + 1);
             }
-        }
-        catch (BadLocationException e) {
+        } catch (BadLocationException e) {
             return;
         }
     }
@@ -268,20 +266,18 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
     public void duplicateLine(int end) {
         if (getSelectedText() != null) {
             getCodeZone().insert(getSelectedText(), end);
-        }
-        else {
+        } else {
             try {
                 int lineIndexStart = getCodeZone().getLineStartOffsetOfCurrentLine();
                 int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
                 String lineText = getCodeZone().getText(lineIndexStart, lineIndexEnd - lineIndexStart);
-                if(lineText.contains("\n")) {
+                if (lineText.contains("\n")) {
                     getCodeZone().insert(lineText, lineIndexEnd);
                 }
                 else {
                     getCodeZone().insert("\n".concat(lineText), lineIndexEnd);
                 }
-            }
-            catch (BadLocationException e) {
+            } catch (BadLocationException e) {
                 return;
             }
         }
@@ -333,23 +329,20 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 break;
             case REPLACE_ALL:
                 result = SearchEngine.replaceAll(getCodeZone(), context);
-                showMessageDialog(null,result.getCount() + " occurrences remplacées.");
+                showMessageDialog(null, result.getCount() + " occurrences remplacées.");
                 break;
         }
 
         String text;
         if (result.wasFound()) {
             text = "Texte trouvé; occurrences marquées: " + result.getMarkedCount();
-        }
-        else if (type==SearchEvent.Type.MARK_ALL) {
-            if (result.getMarkedCount()>0) {
+        } else if (type == SearchEvent.Type.MARK_ALL) {
+            if (result.getMarkedCount() > 0) {
                 text = "Occurrences marquées: " + result.getMarkedCount();
-            }
-            else {
+            } else {
                 text = "";
             }
-        }
-        else {
+        } else {
             text = "Texte non trouvé";
         }
         statusBar.setLabel(text);
@@ -462,7 +455,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 //            codeArea.displaceCaret(hit.getInsertionIndex());
         }
     }
-//
+
     private void onDragDropped(DragEvent event) {
         //codeArea.setShowCaret(Caret.CaretVisibility.AUTO);
         Dragboard db = event.getDragboard();

@@ -14,8 +14,9 @@ public class GroovySyntax extends GroovyTokenMaker {
     public void addToken(char[] array, int start, int end, int tokenType, int startOffset, boolean hyperlink) {
         if (tokenType == TokenTypes.IDENTIFIER) {
             int newType = extraTokens.get(array, start, end);
-            if (newType>-1)
+            if (newType > -1) {
                 tokenType = newType;
+            }
         }
         super.addToken(array, start, end, tokenType, startOffset, hyperlink);
     }
