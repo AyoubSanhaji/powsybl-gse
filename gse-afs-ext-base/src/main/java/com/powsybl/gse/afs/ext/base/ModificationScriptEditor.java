@@ -18,25 +18,19 @@ import com.powsybl.gse.util.GseAlerts;
 import com.powsybl.gse.util.GseUtil;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
-import javafx.collections.FXCollections;
 import javafx.concurrent.Service;
 import javafx.concurrent.Task;
-import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.input.*;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.event.InputMethodEvent;
-import java.awt.event.InputMethodListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.ResourceBundle;
@@ -103,7 +97,7 @@ public class ModificationScriptEditor extends BorderPane
             @Override
             public void keyPressed(KeyEvent e) {
                 Platform.runLater(() -> saved.set(!codeEditor.hasUnsavedChanges()));
-                if(e.getKeyCode()==KeyEvent.VK_S && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                if (e.getKeyCode() == KeyEvent.VK_S && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
                     save();
                 }
             }
@@ -119,9 +113,6 @@ public class ModificationScriptEditor extends BorderPane
         setTop(toolBar);
         //setBottom(bottomToolBar);
         setCenter(splitPane);
-
-
-
         // listen to modifications
         storableScript.addListener(this);
     }
