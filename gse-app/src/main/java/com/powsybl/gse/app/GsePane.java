@@ -130,7 +130,7 @@ public class GsePane extends StackPane {
         popup.show(getScene().getWindow());
     }
 
-    private void showRaccourcis(){
+    private void showRaccourcis() {
         Popup popup = new Popup();
         popup.setAutoHide(true);
         TextField title = new TextField("Raccourcis Clavier");
