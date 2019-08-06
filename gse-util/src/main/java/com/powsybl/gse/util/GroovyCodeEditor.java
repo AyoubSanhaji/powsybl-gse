@@ -245,7 +245,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 }
             }
         } catch (BadLocationException e) {
-          return;
+            return;
         }
     }
 
@@ -273,8 +273,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 String lineText = getCodeZone().getText(lineIndexStart, lineIndexEnd - lineIndexStart);
                 if (lineText.contains("\n")) {
                     getCodeZone().insert(lineText, lineIndexEnd);
-                }
-                else {
+                } else {
                     getCodeZone().insert("\n".concat(lineText), lineIndexEnd);
                 }
             } catch (BadLocationException e) {
@@ -383,15 +382,15 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         }
     }
 
-    public boolean hasUnsavedChanges(){
+    public boolean hasUnsavedChanges() {
         return getTextEditorPane().isDirty();
     }
 
-    public TextEditorPane getTextEditorPane(){
-        return ((TextEditorPane)getCodeZone());
+    public TextEditorPane getTextEditorPane() {
+        return (TextEditorPane) getCodeZone();
     }
 
-    public RSyntaxTextArea getCodeZone(){
+    public RSyntaxTextArea getCodeZone() {
         return (RSyntaxTextArea) editor.getTextArea();
     }
 
@@ -406,7 +405,6 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
             getCodeZone().getSelectedText().substring(0, 0);
         }
     }
-
 
     public void setTabSize(int size) {
         getCodeZone().setTabSize(size);

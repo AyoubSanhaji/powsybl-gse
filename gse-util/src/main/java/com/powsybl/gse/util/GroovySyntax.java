@@ -15,7 +15,7 @@ public class GroovySyntax extends GroovyTokenMaker {
         if (tokenType == TokenTypes.IDENTIFIER) {
             int newType = extraTokens.get(array, start, end);
             if (newType > -1) {
-                tokenType = newType;
+                super.addToken(array, start, end, newType, startOffset, hyperlink);
             }
         }
         super.addToken(array, start, end, tokenType, startOffset, hyperlink);
@@ -25,7 +25,7 @@ public class GroovySyntax extends GroovyTokenMaker {
         extraTokens = new TokenMap();
     }
 
-    static public TokenMap getKeywords() {
+    static TokenMap getKeywords() {
 //        if (extraTokens == null) {
 //            try {
 //                extraTokens = new TokenMap(false);
