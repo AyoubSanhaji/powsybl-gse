@@ -12,8 +12,6 @@ import com.powsybl.afs.ext.base.ModificationScript;
 import com.powsybl.gse.spi.GseContext;
 import com.powsybl.gse.spi.ProjectFileCreator;
 import com.powsybl.gse.spi.ProjectFileCreatorExtension;
-import com.powsybl.gse.util.Glyph;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 
 import java.util.ResourceBundle;
@@ -29,11 +27,6 @@ public class ModificationScriptCreatorExtension implements ProjectFileCreatorExt
     @Override
     public Class<ModificationScript> getProjectFileType() {
         return ModificationScript.class;
-    }
-
-    @Override
-    public Node getMenuGraphic() {
-        return Glyph.createAwesomeFont('\uf0f6').size("1.2em");
     }
 
     @Override
