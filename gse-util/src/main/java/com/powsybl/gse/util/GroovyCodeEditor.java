@@ -6,60 +6,34 @@
  */
 package com.powsybl.gse.util;
 
-import com.google.common.base.Stopwatch;
-import com.powsybl.commons.util.ServiceLoaderCache;
-import com.powsybl.gse.spi.KeywordsProvider;
-import groovyjarjarantlr.Token;
-import groovyjarjarantlr.TokenStream;
-import groovyjarjarantlr.TokenStreamException;
-import javafx.beans.value.ObservableValue;
 import javafx.embed.swing.SwingNode;
 import javafx.scene.Scene;
-import javafx.scene.input.*;
-import org.codehaus.groovy.antlr.GroovySourceToken;
-import org.codehaus.groovy.antlr.SourceBuffer;
-import org.codehaus.groovy.antlr.UnicodeEscapingReader;
-import org.codehaus.groovy.antlr.UnicodeLexerSharedInputState;
-import org.codehaus.groovy.antlr.parser.GroovyLexer;
-import org.codehaus.groovy.antlr.parser.GroovyTokenTypes;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import org.controlsfx.control.MasterDetailPane;
-import org.controlsfx.control.StatusBar;
-import org.fife.rsta.ac.LanguageSupportFactory;
-import org.fife.rsta.ac.groovy.GroovyLanguageSupport;
-import org.fife.rsta.ac.java.JavaLanguageSupport;
-import org.fife.rsta.ac.js.completion.JSClassCompletion;
 import org.fife.rsta.ui.CollapsibleSectionPanel;
-import org.fife.rsta.ui.SizeGripIcon;
 import org.fife.rsta.ui.search.FindToolBar;
 import org.fife.rsta.ui.search.ReplaceToolBar;
 import org.fife.rsta.ui.search.SearchEvent;
 import org.fife.rsta.ui.search.SearchListener;
-import org.fife.ui.autocomplete.*;
+import org.fife.ui.autocomplete.AutoCompletion;
+import org.fife.ui.autocomplete.BasicCompletion;
+import org.fife.ui.autocomplete.CompletionProvider;
+import org.fife.ui.autocomplete.DefaultCompletionProvider;
 import org.fife.ui.rsyntaxtextarea.*;
-import org.fife.ui.rtextarea.*;
-import org.fxmisc.richtext.Caret;
-import org.fxmisc.richtext.CharacterHit;
-import org.fxmisc.richtext.CodeArea;
-import org.fxmisc.richtext.LineNumberFactory;
-import org.fxmisc.richtext.model.StyleSpans;
-import org.fxmisc.richtext.model.StyleSpansBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.fife.ui.rtextarea.RTextScrollPane;
+import org.fife.ui.rtextarea.SearchContext;
+import org.fife.ui.rtextarea.SearchEngine;
+import org.fife.ui.rtextarea.SearchResult;
 
 import javax.swing.*;
-import javax.swing.plaf.basic.BasicInternalFrameTitlePane;
 import javax.swing.text.BadLocationException;
 import java.awt.*;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.awt.dnd.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
-import java.io.*;
-import java.util.*;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author Geoffroy Jamgotchian <geoffroy.jamgotchian at rte-france.com>
@@ -69,7 +43,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 
     private SwingNode swingNode;
     private JPanel panelSwing = new JPanel(new BorderLayout());
-    private final Integer[] tabSizes = new Integer[]{4,6,8};
+    private final Integer[] tabSizes = new Integer[]{4, 6, 8};
     private RTextScrollPane editor;
 
     private CollapsibleSectionPanel csp;
@@ -107,16 +81,19 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
             @Override
             public void keyPressed(java.awt.event.KeyEvent e) {
                 String input = Character.toString(e.getKeyChar());
-                if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0)
+                if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0) {
                     codeZone.insert(String.valueOf("#{[|\\^@]€¤".charAt("\"'(-_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
-                if(e.getKeyChar()=='/' && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0)
+                }
+                if(e.getKeyChar() == '/' && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
                     commentLines(codeZone.getSelectionStart(), codeZone.getSelectionEnd());
-                if (e.getKeyCode()==127 && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                }
+                if (e.getKeyCode() == 127 && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
                     e.consume();
                     deleteWord(codeZone.getCaretPosition());
                 }
-                if(e.getKeyCode() == 40 && (e.getModifiers() & KeyEvent.CTRL_MASK + KeyEvent.SHIFT_MASK) != 0)
+                if(e.getKeyCode() == 40 && (e.getModifiers() & KeyEvent.CTRL_MASK + KeyEvent.SHIFT_MASK) != 0) {
                     duplicateLine(codeZone.getSelectionEnd());
+                }
             }
         });
         // Adding keywords highlighting
@@ -274,17 +251,19 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         try {
             int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
             String[] words = getCodeZone().getText(start, lineIndexEnd-start).split("[\\s|.|(|)|/|\"|\'|=|+|-|*|{|}]");
-            if (words.length != 0 && words[0].length()!=0)
+            if (words.length != 0 && words[0].length()!=0) {
                 getCodeZone().replaceRange("", start, start + words[0].length());
-            else
+            }
+            else {
                 getCodeZone().replaceRange("", start, start + 1);
+            }
         } catch (BadLocationException e) {}
     }
 
     public void duplicateLine(int end){
-        if(getSelectedText() != null)
+        if(getSelectedText() != null) {
             getCodeZone().insert(getSelectedText(), end);
-
+        }
         else {
             try {
                 int lineIndexStart = getCodeZone().getLineStartOffsetOfCurrentLine();
@@ -375,11 +354,13 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         dialog.setVisible(true);
         dialog.dispose();
         Object selectedValue = pane.getValue();
-        if (selectedValue == null)
+        if (selectedValue == null) {
             return JOptionPane.CLOSED_OPTION;
+        }
 
-        if (selectedValue instanceof Integer)
+        if (selectedValue instanceof Integer) {
             return ((Integer) selectedValue).intValue();
+        }
         return JOptionPane.CLOSED_OPTION;
     }
 
@@ -421,7 +402,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 
     private void deleteSelection() {
         if (!getCodeZone().getSelectedText().isEmpty()) {
-            getCodeZone().getSelectedText().substring(0,0);
+            getCodeZone().getSelectedText().substring(0, 0);
         }
     }
 
