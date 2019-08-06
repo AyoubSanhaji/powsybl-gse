@@ -17,10 +17,7 @@ import com.powsybl.gse.util.NodeChooser;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Side;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
@@ -133,6 +130,16 @@ public class GsePane extends StackPane {
         popup.show(getScene().getWindow());
     }
 
+    private void showRaccourcis(){
+        Popup popup = new Popup();
+        popup.setAutoHide(true);
+        TextField title = new TextField("Raccourcis Clavier");
+        Button button = new Button("test");
+        Pane pane = new Pane(title, button);
+        popup.getContent().addAll(pane);
+        popup.show(getScene().getWindow());
+    }
+
     private void setUserSession(UserSession userSession) {
         data.setTokenProvider(() -> userSession != null ? userSession.getToken() : null);
     }
@@ -172,9 +179,12 @@ public class GsePane extends StackPane {
             contextMenu.getItems().add(documentationMenuItem);
         });
 
-        MenuItem aboutMenuItem = new MenuItem(RESOURCE_BUNDLE.getString("About") + "...");
+        MenuItem aboutMenuItem = new MenuItem(RESOURCE_BUNDLE.getString("About"));
+        MenuItem shortcutMenuItem = new MenuItem("Shortcuts");
         aboutMenuItem.setOnAction(event -> showAbout());
+        shortcutMenuItem.setOnAction(event -> showRaccourcis());
         contextMenu.getItems().add(aboutMenuItem);
+        contextMenu.getItems().add(shortcutMenuItem);
 
         appBar.getHelpButton().setOnAction(event -> contextMenu.show(appBar.getHelpButton(), Side.BOTTOM, 0, 0));
 

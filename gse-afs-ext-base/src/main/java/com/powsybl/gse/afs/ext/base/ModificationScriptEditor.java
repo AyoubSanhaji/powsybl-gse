@@ -9,7 +9,6 @@ package com.powsybl.gse.afs.ext.base;
 import com.powsybl.afs.ProjectFile;
 import com.powsybl.afs.ext.base.ScriptListener;
 import com.powsybl.afs.ext.base.StorableScript;
-import com.powsybl.gse.spi.AutoCompletionWordsProvider;
 import com.powsybl.gse.spi.GseContext;
 import com.powsybl.gse.spi.ProjectFileViewer;
 import com.powsybl.gse.spi.Savable;
@@ -17,6 +16,7 @@ import com.powsybl.gse.util.Glyph;
 import com.powsybl.gse.util.GroovyCodeEditor;
 import com.powsybl.gse.util.GseAlerts;
 import com.powsybl.gse.util.GseUtil;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Service;
@@ -27,6 +27,7 @@ import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
@@ -34,8 +35,10 @@ import javafx.scene.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.awt.event.InputMethodEvent;
+import java.awt.event.InputMethodListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.ResourceBundle;
 
 /**
@@ -52,11 +55,11 @@ public class ModificationScriptEditor extends BorderPane
 
     private final ToolBar toolBar;
 
-    private final ToolBar bottomToolBar;
-
-    private final ComboBox<Integer> comboBox;
-
-    private final Label tabSizeLabel;
+//    private final ToolBar bottomToolBar;
+//
+//    private final ComboBox<Integer> comboBox;
+//
+//    private final Label tabSizeLabel;
 
     private Label caretPositionDisplay;
 
@@ -80,42 +83,47 @@ public class ModificationScriptEditor extends BorderPane
         this.storableScript = storableScript;
         this.context = context;
 
-        //Adding  autocompletion keywords suggestions depending the context
-        List<String> suggestions = new ArrayList<>();
-        List<AutoCompletionWordsProvider> completionWordsProviderExtensions = findCompletionWordsProviderExtensions(storableScript);
-        completionWordsProviderExtensions.forEach(extension -> suggestions.addAll(extension.completionKeyWords()));
-
-        codeEditor = new GroovyCodeEditor(scene, suggestions);
+        codeEditor = new GroovyCodeEditor(scene);
         Text saveGlyph = Glyph.createAwesomeFont('\uf0c7').size("1.3em");
         saveButton = new Button("", saveGlyph);
         saveButton.getStyleClass().add("gse-toolbar-button");
         saveButton.disableProperty().bind(saved);
         saveButton.setOnAction(event -> save());
-        comboBox = new ComboBox(FXCollections.observableArrayList(2, 4, 8));
-        comboBox.getSelectionModel().select(1);
-        comboBox.getSelectionModel().selectedIndexProperty().addListener((observable, oldvalue, newvalue) -> codeEditor.setTabSize(comboBox.getItems().get((int) newvalue)));
-        tabSizeLabel = new Label(RESOURCE_BUNDLE.getString("TabSize") + ": ");
-        caretPositionDisplay = new Label(codeEditor.currentPosition());
-        codeEditor.caretPositionProperty().addListener((observable, oldValue, newValue) -> caretPositionDisplay.setText(codeEditor.currentPosition()));
+
+//        comboBox = new ComboBox(FXCollections.observableArrayList(2, 4, 8));
+//        comboBox.getSelectionModel().select(1);
+//        comboBox.getSelectionModel().selectedIndexProperty().addListener(e -> codeEditor.setTabSize(comboBox.getSelectionModel().getSelectedItem()));
+//        tabSizeLabel = new Label(RESOURCE_BUNDLE.getString("TabSize") + ": ");
+//
+        //caretPositionDisplay = new Label(codeEditor.currentPosition());
+        //codeEditor.caretPositionProperty().addListener((observable, oldValue, newValue) -> caretPositionDisplay.setText(codeEditor.currentPosition()));
         codeEditorWithProgressIndicator = new StackPane(codeEditor, new Group(progressIndicator));
-        codeEditor.codeProperty().addListener((observable, oldValue, newValue) -> saved.set(false));
+        //codeEditor.codeProperty().addListener((observable, oldValue, newValue) -> saved.set(false));
+        codeEditor.getCodeZone().addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                Platform.runLater(() -> saved.set(!codeEditor.hasUnsavedChanges()));
+                if(e.getKeyCode()==KeyEvent.VK_S && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                    save();
+                }
+            }
+        });
+
         splitPane = new SplitPane(codeEditorWithProgressIndicator);
         toolBar = new ToolBar(saveButton);
-        Pane spacer = new Pane();
-        bottomToolBar = new ToolBar(tabSizeLabel, comboBox, spacer, caretPositionDisplay);
-        bottomToolBar.widthProperty().addListener((observable, oldvalue, newvalue) -> spacer.setPadding(new Insets(0, (double) newvalue - 280, 0, 0)));
+        //Pane spacer = new Pane();
+//        bottomToolBar = new ToolBar(tabSizeLabel, comboBox, spacer, caretPositionDisplay);
+//        bottomToolBar.widthProperty().addListener((observable, oldvalue, newvalue) -> spacer.setPadding(new Insets(0, (double) newvalue - 280, 0, 0)));
         splitPane.setOrientation(Orientation.VERTICAL);
         splitPane.setDividerPosition(0, 0.8);
         setTop(toolBar);
-        setBottom(bottomToolBar);
+        //setBottom(bottomToolBar);
         setCenter(splitPane);
+
+
 
         // listen to modifications
         storableScript.addListener(this);
-    }
-
-    private List<AutoCompletionWordsProvider> findCompletionWordsProviderExtensions(StorableScript storableScript) {
-        return GroovyCodeEditor.findAutoCompletionWordProviderExtensions(storableScript.getClass());
     }
 
     @Override
@@ -125,7 +133,7 @@ public class ModificationScriptEditor extends BorderPane
             storableScript.removeListener(this);
             storableScript.writeScript(codeEditor.getCode());
             storableScript.addListener(this);
-            saved.setValue(true);
+            Platform.runLater(() -> saved.setValue(true));
         }
     }
 

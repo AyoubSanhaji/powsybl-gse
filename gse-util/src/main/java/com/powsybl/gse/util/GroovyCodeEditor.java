@@ -7,23 +7,15 @@
 package com.powsybl.gse.util;
 
 import com.google.common.base.Stopwatch;
-import com.google.common.collect.ImmutableList;
-import com.powsybl.commons.exceptions.UncheckedClassNotFoundException;
 import com.powsybl.commons.util.ServiceLoaderCache;
-import com.powsybl.gse.spi.AutoCompletionWordsProvider;
 import com.powsybl.gse.spi.KeywordsProvider;
-import com.powsybl.iidm.network.Country;
-import com.powsybl.iidm.network.EnergySource;
 import groovyjarjarantlr.Token;
 import groovyjarjarantlr.TokenStream;
 import groovyjarjarantlr.TokenStreamException;
 import javafx.beans.value.ObservableValue;
-import javafx.geometry.Side;
+import javafx.embed.swing.SwingNode;
 import javafx.scene.Scene;
 import javafx.scene.input.*;
-import javafx.scene.layout.VBox;
-import javafx.util.Pair;
-import org.apache.commons.lang3.StringUtils;
 import org.codehaus.groovy.antlr.GroovySourceToken;
 import org.codehaus.groovy.antlr.SourceBuffer;
 import org.codehaus.groovy.antlr.UnicodeEscapingReader;
@@ -31,7 +23,20 @@ import org.codehaus.groovy.antlr.UnicodeLexerSharedInputState;
 import org.codehaus.groovy.antlr.parser.GroovyLexer;
 import org.codehaus.groovy.antlr.parser.GroovyTokenTypes;
 import org.controlsfx.control.MasterDetailPane;
-import org.fxmisc.flowless.VirtualizedScrollPane;
+import org.controlsfx.control.StatusBar;
+import org.fife.rsta.ac.LanguageSupportFactory;
+import org.fife.rsta.ac.groovy.GroovyLanguageSupport;
+import org.fife.rsta.ac.java.JavaLanguageSupport;
+import org.fife.rsta.ac.js.completion.JSClassCompletion;
+import org.fife.rsta.ui.CollapsibleSectionPanel;
+import org.fife.rsta.ui.SizeGripIcon;
+import org.fife.rsta.ui.search.FindToolBar;
+import org.fife.rsta.ui.search.ReplaceToolBar;
+import org.fife.rsta.ui.search.SearchEvent;
+import org.fife.rsta.ui.search.SearchListener;
+import org.fife.ui.autocomplete.*;
+import org.fife.ui.rsyntaxtextarea.*;
+import org.fife.ui.rtextarea.*;
 import org.fxmisc.richtext.Caret;
 import org.fxmisc.richtext.CharacterHit;
 import org.fxmisc.richtext.CodeArea;
@@ -41,273 +46,371 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.StringReader;
-import java.io.UncheckedIOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Collection;
-import java.util.Collections;
+import javax.swing.*;
+import javax.swing.plaf.basic.BasicInternalFrameTitlePane;
+import javax.swing.text.BadLocationException;
+import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.*;
+import java.awt.event.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.io.*;
+import java.util.*;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.Scanner;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * @author Geoffroy Jamgotchian <geoffroy.jamgotchian at rte-france.com>
  */
-public class GroovyCodeEditor extends MasterDetailPane {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(GroovyCodeEditor.class);
-
-    public static final int DEFAULT_TAB_SIZE = 4;
-
-    private final SearchableCodeArea codeArea = new SearchableCodeArea();
-
-    private final KeyCombination searchKeyCombination = new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN);
-
-    private final KeyCombination replaceWordKeyCombination = new KeyCodeCombination(KeyCode.R, KeyCombination.CONTROL_DOWN);
-
-    private final SearchBar searchBar;
-
-    private final KeyCombination pasteKeyCombination = new KeyCodeCombination(KeyCode.V, KeyCombination.CONTROL_DOWN);
-
-    private static final ServiceLoaderCache<KeywordsProvider> KEYWORDS_LOADER = new ServiceLoaderCache<>(KeywordsProvider.class);
-
-    private static final ServiceLoaderCache<AutoCompletionWordsProvider> AUTO_COMPLETION_WORDS_LOADER = new ServiceLoaderCache<>(AutoCompletionWordsProvider.class);
-
+public class GroovyCodeEditor extends MasterDetailPane implements SearchListener {
     private boolean allowedDrag = false;
 
-    private int tabSize = DEFAULT_TAB_SIZE;
+    private SwingNode swingNode;
+    private JPanel panelSwing = new JPanel(new BorderLayout());
+    private final Integer[] tabSizes = new Integer[]{4,6,8};
+    private RTextScrollPane editor;
 
-    private int matchedBracketPosition;
+    private CollapsibleSectionPanel csp;
+    private FindToolBar findToolBar;
+    private ReplaceToolBar replaceToolBar;
+    private StatusBar statusBar;
 
-    private boolean searchingForMatches = false;
+    private RTextScrollPane initEditor() {
+        RSyntaxTextArea codeZone;
+        // Template are enabled
+        RSyntaxTextArea.setTemplatesEnabled(true);
+        // Highlight lines + lines's numbers
+        codeZone = new TextEditorPane();
+        codeZone.setRows(100);
+        codeZone.setColumns(45);
+        // Tabulation size
+        codeZone.setTabSize(4);
+        // Is called when the caret stops moving after a short period to show all the occurrences
+        codeZone.setMarkOccurrences(true);
+        codeZone.setMarkOccurrencesDelay(1);
+        // Language syntax
+        codeZone.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_GROOVY);
+        // Line's folding parameter
+        codeZone.setCodeFoldingEnabled(true);
+        codeZone.setCurrentLineHighlightColor(new Color(15132390));
+        // Font size
+        codeZone.setFont(new Font("Comic Sans MS", Font.BOLD, 14));
+        // Drag n Drop
+//        codeZone.setDragEnabled(false);
+//        RTATextTransferHandler uh = new RTATextTransferHandler();
+//        codeZone.setTransferHandler(uh);
 
-    private Direction searchDirection;
+        // Handling the ALT GR events
+        codeZone.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                String input = Character.toString(e.getKeyChar());
+                if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0)
+                    codeZone.insert(String.valueOf("#{[|\\^@]€¤".charAt("\"'(-_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
+                if(e.getKeyChar()=='/' && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0)
+                    commentLines(codeZone.getSelectionStart(), codeZone.getSelectionEnd());
+                if (e.getKeyCode()==127 && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                    e.consume();
+                    deleteWord(codeZone.getCaretPosition());
+                }
+                if(e.getKeyCode() == 40 && (e.getModifiers() & KeyEvent.CTRL_MASK + KeyEvent.SHIFT_MASK) != 0)
+                    duplicateLine(codeZone.getSelectionEnd());
+            }
+        });
+        // Adding keywords highlighting
+        AbstractTokenMakerFactory atmf = (AbstractTokenMakerFactory)TokenMakerFactory.getDefaultInstance();
+        atmf.putMapping("text/myLanguage", "com.powsybl.gse.util.GroovySyntax");
+        codeZone.setSyntaxEditingStyle("text/myLanguage");
 
-    private static final List<Character> BRACKETS = ImmutableList.of('{', '}', '(', ')', '[', ']');
+        // Autocompletion treatment (By default)
+//        LanguageSupportFactory lsf = LanguageSupportFactory.get();
+//        lsf.register(codeZone);
+//        GroovyLanguageSupport support = (GroovyLanguageSupport) lsf.getSupportFor(SyntaxConstants.SYNTAX_STYLE_GROOVY);
+//        support.setAutoActivationEnabled(true);
+//        support.setParameterAssistanceEnabled(true);
+//        support.setShowDescWindow(true);
+//        support.setAutoActivationEnabled(true);
+//        support.setAutoActivationDelay(0);
+//        support.install(codeZone);
 
-    private static final String MATCHED_BRACKET_STYLE = "bracket-matches";
+        // Autocompletion treatment (Static)
+        CompletionProvider provider = createCompletionProvider();
+        AutoCompletion ac = new AutoCompletion(provider);
+        //ac.setDescriptionWindowColor(null);
+        ac.install(codeZone);
+        ac.setShowDescWindow(true);
+        ac.setAutoCompleteEnabled(true);
+        ac.setAutoActivationEnabled(true); //removes the need to input ctrl+space for autocomplete
+        ac.setAutoCompleteSingleChoices(false); //single choices are not automatically inputted
+        ac.setAutoActivationDelay(0);
 
-    private Set<Integer> tokensPositions = new HashSet<>();
-
-    private enum Direction {
-        BACKWARD,
-        FORWARD;
+        // Editor Pane
+        editor = new RTextScrollPane(codeZone);
+        return editor;
     }
 
-    private AutoCompletion autoCompletion;
+    public SwingNode initSwing() {
+        swingNode = new SwingNode();
+        csp = new CollapsibleSectionPanel();
+        panelSwing.add(csp, BorderLayout.CENTER);
 
-    private static final List<String> STANDARD_SUGGESTIONS = ImmutableList.of("as", "assert", "boolean", "break", "breaker", "byte",
-            "case", "catch", "char", "class", "continue", "def", "default", "double", "else", "enum",
-            "extends", "false", "finally", "float", "for", "generator", "if", "implements", "import", "in",
-            "instanceof", "int", "interface", "load", "long", "native", "network", "new", "null", "package", "private",
-            "protected", "public", "return", "short", "static", "substation", "super", "switch", "synchronized", "this",
-            "threadsafe", "throw", "throws", "transient", "true", "try", "void", "volatile", "voltageLevel", "while"
-    );
+        initSearchDialogs();
 
-    private List<String> optionalSuggestions;
+        csp.add(initEditor());
 
-    private static final class SearchableCodeArea extends CodeArea implements Searchable {
+        ErrorStrip errorStrip = new ErrorStrip(getCodeZone());
+        csp.add(errorStrip, BorderLayout.LINE_END);
+        statusBar = new StatusBar();
 
-        @Override
-        public String getText() {
-            return super.getText();
-        }
+        JComboBox<Integer> tabSize = new JComboBox<>(tabSizes);
+        tabSize.setPreferredSize(new Dimension(80, 25));
+        tabSize.setSelectedItem(new Integer(4));
+        tabSize.addActionListener(e -> setTabSize((int)tabSize.getSelectedItem()));
 
-        @Override
-        public void select(int start, int end) {
-            selectRange(start, end);
-            showParagraphAtTop(getCurrentParagraph());
-        }
+        JPanel bottomPane = new JPanel(new FlowLayout(FlowLayout.LEADING));
+        bottomPane.add(new JLabel("Taille Tabulation: "));
+        bottomPane.add(tabSize);
+        bottomPane.add(statusBar);
 
-        @Override
-        public void deselect() {
-            super.deselect();
-        }
+        panelSwing.add(bottomPane, BorderLayout.SOUTH);
+
+        swingNode.setContent(panelSwing);
+
+        Action a = csp.addBottomComponent(KeyStroke.getKeyStroke(KeyEvent.VK_F, ActionEvent.CTRL_MASK), findToolBar);
+        a.putValue(Action.NAME, "Rechercher");
+        a = csp.addBottomComponent(KeyStroke.getKeyStroke(KeyEvent.VK_R, ActionEvent.CTRL_MASK), replaceToolBar);
+        a.putValue(Action.NAME, "Remplacer");
+
+        return swingNode;
     }
 
     public GroovyCodeEditor(Scene scene) {
-        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
-        codeArea.richChanges()
-                .filter(ch -> !ch.getInserted().equals(ch.getRemoved()))
-                .subscribe(change -> codeArea.setStyleSpans(0, computeHighlighting(codeArea.getText())));
-        searchBar = new SearchBar(codeArea);
-        searchBar.setCloseAction(e -> {
-            setShowDetailNode(false);
-            codeArea.requestFocus();
-        });
-        setMasterNode(new VirtualizedScrollPane(codeArea));
-        VBox vBox = new VBox();
-        vBox.getChildren().add(searchBar);
-        setDetailNode(vBox);
-        setDetailSide(Side.TOP);
+//        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+//        codeArea.richChanges()
+//                .filter(ch -> !ch.getInserted().equals(ch.getRemoved()))
+//                .subscribe(change -> codeArea.setStyleSpans(0, computeHighlighting(codeArea.getText())));
+//        searchBar = new SearchBar(codeArea);
+//        searchBar.setCloseAction(e -> {
+//            setShowDetailNode(false);
+//            codeArea.requestFocus();
+//        });
+        //setMasterNode(new VirtualizedScrollPane(codeArea));
+        setMasterNode(initSwing());
         setShowDetailNode(false);
 
-        setOnKeyPressed((KeyEvent ke) -> {
-            if (searchKeyCombination.match(ke)) {
-                setSearchBar(vBox, "search");
-                showDetailNode();
-                searchBar.requestFocus();
-            } else if (replaceWordKeyCombination.match(ke)) {
-                setShowDetailNode(false);
-                setSearchBar(vBox, "replace");
-                searchBar.setReplaceAllAction(event -> replaceAllOccurences(searchBar.getSearchedText(), codeArea.getText(), searchBar.isCaseSensitiveBoxSelected(), searchBar.isWordSensitiveBoxSelected()));
-                searchBar.setReplaceAction(event -> replaceCurrentOccurence(searchBar.getCurrentMatchStart(), searchBar.getCurrentMatchEnd()));
-                showDetailNode();
-                searchBar.requestFocus();
-            }
+//        VBox vBox = new VBox();
+//        vBox.getChildren().add(searchBar);
+//        setDetailNode(vBox);
+//        setDetailSide(Side.TOP);
+//        setShowDetailNode(false);
 
-        });
-        codeArea.addEventFilter(KeyEvent.KEY_PRESSED, this::setTabulationSpace);
-        codeArea.setOnDragEntered(event -> codeArea.setShowCaret(Caret.CaretVisibility.ON));
-        codeArea.setOnDragExited(event -> codeArea.setShowCaret(Caret.CaretVisibility.AUTO));
-        codeArea.setOnDragDetected(this::onDragDetected);
-        codeArea.setOnDragOver(this::onDragOver);
-        codeArea.setOnDragDropped(this::onDragDropped);
-        codeArea.setOnSelectionDrag(p -> allowedDrag = true);
-
-        codeArea.caretPositionProperty().addListener((observable, oldvalue, newvalue) -> {
-            searchingForMatches = false;
-            final int codeLength = codeArea.getText().length();
-            if (oldvalue != null && oldvalue > 0 && codeLength >= oldvalue && tokenIsBracket(codeArea.getText(oldvalue - 1, oldvalue))) {
-                codeArea.setStyleSpans(0, computeHighlighting(codeArea.getText()));
-            }
-            if (newvalue > 0) {
-                String caretPositonText = codeArea.getText(newvalue - 1, newvalue);
-                if (tokenIsBracket(caretPositonText)) {
-                    findBracketsMatches(codeArea.getText(), caretPositonText);
-                }
-            }
-        });
-
-        codeProperty().addListener((observable, oldvalue, newvalue) -> searchingForMatches = false);
+//        setOnKeyPressed((KeyEvent ke) -> {
+//            if (searchKeyCombination.match(ke)) {
+//                setSearchBar(vBox, "search");
+//                showDetailNode();
+//                searchBar.requestFocus();
+//            } else if (replaceWordKeyCombination.match(ke)) {
+//                setShowDetailNode(false);
+//                setSearchBar(vBox, "replace");
+//                searchBar.setReplaceAllAction(event -> replaceAllOccurences(searchBar.getSearchedText(), codeArea.getText(), searchBar.isCaseSensitiveBoxSelected(), searchBar.isWordSensitiveBoxSelected()));
+//                searchBar.setReplaceAction(event -> replaceCurrentOccurence(searchBar.getCurrentMatchStart(), searchBar.getCurrentMatchEnd()));
+//                showDetailNode();
+//                searchBar.requestFocus();
+//            }
+//
+//        });
+        //editor.getTextArea().setDr
+//        codeArea.addEventFilter(KeyEvent.KEY_PRESSED, this::setTabulationSpace);
+//        editor.getTextArea().setOnDragEntered(event -> codeArea.setShowCaret(Caret.CaretVisibility.ON));
+//        codeArea.setOnDragExited(event -> codeArea.setShowCaret(Caret.CaretVisibility.AUTO));
+//        getTextEditorPane().setOnDragDetected(this::onDragDetected);
+//        editor.getTextArea().setOnDragOver(this::onDragOver);
+//        editor.getTextArea().setOnDragDropped(this::onDragDropped);
+//        editor.getTextArea().setOnSelectionDrag(p -> allowedDrag = true);
     }
 
-    public static List<AutoCompletionWordsProvider> findAutoCompletionWordProviderExtensions(Class<?> cls) {
-        return AUTO_COMPLETION_WORDS_LOADER.getServices().stream()
-                .filter(extension -> extension.getProjectFileType().isAssignableFrom(cls))
-                .collect(Collectors.toList());
+    /**
+     * Create a simple provider that adds some Java-related completions.
+     */
+    private CompletionProvider createCompletionProvider() {
+        DefaultCompletionProvider provider = new DefaultCompletionProvider();
+        provider.setAutoActivationRules(true, ".");
+        // A BasicCompletion is just a straightforward word completion.
+        //new FunctionCompletion()
+        //new VariableCompletion()
+        //new ShorthandCompletion()
+
+        provider.addCompletion(new BasicCompletion(provider, "mapToGenerator"));
+        provider.addCompletion(new BasicCompletion(provider, "mapToLoad"));
+        provider.addCompletion(new BasicCompletion(provider, "network.test1"));
+        provider.addCompletion(new BasicCompletion(provider, "network.test2"));
+
+        return provider;
     }
 
-    private static boolean tokenIsBracket(String token) {
-        return BRACKETS.contains(token.charAt(0));
+    @Override
+    public String getSelectedText() {
+        return getCodeZone().getSelectedText();
     }
 
-    public GroovyCodeEditor(Scene scene, List<String> keywordsSuggestions) {
-        this(scene);
-        optionalSuggestions = keywordsSuggestions;
-        autoCompletion = new AutoCompletion(codeArea);
-        codeArea.textProperty().addListener((observable, oldCode, newCode) -> {
-            autoCompletion.hide();
-            int caretPosition = codeArea.getCaretPosition();
-            Matcher nonWordMatcher = caretPosition >= 1 ? Pattern.compile("\\W").matcher(codeArea.getText(caretPosition - 1, caretPosition)) : null;
-            Matcher wordMatcher = caretPosition >= 2 ? Pattern.compile("\\w").matcher(codeArea.getText(caretPosition - 2, caretPosition - 1)) : null;
-            Matcher whiteSpaceMatcher = caretPosition >= 1 ? Pattern.compile("\\s").matcher(codeArea.getText(caretPosition - 1, caretPosition)) : null;
-            String lastToken = nonWordMatcher != null && nonWordMatcher.find() ? nonWordMatcher.group() : getLastToken(caretLineText());
-            autoComplete(caretPosition, wordMatcher, whiteSpaceMatcher, lastToken);
-        });
-    }
-
-    private void autoComplete(int caretPosition, Matcher wordMatcher, Matcher whiteSpaceMatcher, String lastToken) {
-        int length = lastToken.length();
-        if (lastToken.equals(".") && wordMatcher != null && wordMatcher.find()) {
-            List<String> methods = completionMethods().get(getLastToken(caretLineText()));
-            showSuggestions("", methods);
-        } else if (whiteSpaceMatcher != null && !whiteSpaceMatcher.find() && caretPosition > length + 1 && codeArea.getText(caretPosition - length - 1, caretPosition - length).equals(".")) {
-            String[] tokens = caretLineText().split("\\.");
-            String text = tokens.length >= 2 ? tokens[tokens.length - 2] : " ";
-            String completingMethod = tokens[tokens.length - 1];
-            String wordToComplete = getLastToken(text);
-            List<String> methods = completionMethods().get(wordToComplete);
-            showSuggestions(completingMethod, methods);
-        } else {
-            List<String> keywordsSuggestions = new ArrayList<>(STANDARD_SUGGESTIONS);
-            Set<String> energySourceEnums = Arrays.stream(EnergySource.class.getDeclaredFields()).filter(Field::isEnumConstant).map(Field::getName)
-                    .collect(Collectors.toSet());
-            Set<String> countryEnums = Arrays.stream(Country.class.getDeclaredFields()).filter(Field::isEnumConstant).map(Field::getName)
-                    .collect(Collectors.toSet());
-            keywordsSuggestions.addAll(energySourceEnums);
-            keywordsSuggestions.addAll(countryEnums);
-            if (optionalSuggestions != null) {
-                keywordsSuggestions.addAll(optionalSuggestions);
-            }
-            showSuggestions(lastToken, keywordsSuggestions);
-        }
-    }
-
-    private void showSuggestions(String completiongWord, List<String> suggestions) {
-        if (suggestions != null && completiongWord != null) {
-            autoCompletion.setSuggestions(suggestions);
-            if (completiongWord.equals("")) {
-                autoCompletion.showMethodsSuggestions(getScene().getWindow());
-            } else {
-                if (getScene() != null) {
-                    autoCompletion.showKeyWordsSuggestions(completiongWord, getScene().getWindow());
-                }
+    public void commentLines(int start, int end){
+        try {
+            int lineNumberStart = getCodeZone().getLineOfOffset(start);
+            int lineNumberEnd = getCodeZone().getLineOfOffset(end);
+            for(int i=lineNumberStart ; i<=lineNumberEnd ; i++) {
+                int lineIndexStart = getCodeZone().getLineStartOffset(i);
+                if(getCodeZone().getText(lineIndexStart, 2).equals("//"))
+                    getCodeZone().replaceRange("", lineIndexStart, lineIndexStart+2);
+                else
+                    getCodeZone().replaceRange("//", lineIndexStart, lineIndexStart);
             }
         }
+        catch (BadLocationException e) {}
     }
 
-    private static String getLastToken(String text) {
-        //extract words from text
-        Matcher matcher = Pattern.compile("\\w*\\w").matcher(text);
-        String word = " ";
-        while (matcher.find()) {
-            word = matcher.group();
-        }
-        return word;
+    public void deleteWord(int start){
+        try {
+            int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
+            String[] words = getCodeZone().getText(start, lineIndexEnd-start).split("[\\s|.|(|)|/|\"|\'|=|+|-|*|{|}]");
+            if (words.length != 0 && words[0].length()!=0)
+                getCodeZone().replaceRange("", start, start + words[0].length());
+            else
+                getCodeZone().replaceRange("", start, start + 1);
+        } catch (BadLocationException e) {}
     }
 
-    private String caretLineText() {
-        int currentLine = codeArea.getCaretSelectionBind().getParagraphIndex();
-        String[] tokenArray = codeArea.getText(currentLine, 0, currentLine, codeArea.getCaretColumn()).split(" ");
-        return tokenArray.length >= 1 ? tokenArray[tokenArray.length - 1] : " ";
-    }
+    public void duplicateLine(int end){
+        if(getSelectedText() != null)
+            getCodeZone().insert(getSelectedText(), end);
 
-    private Map<String, List<String>> completionMethods() {
-        Map<String, List<String>> completionMethods = new HashMap<>();
-
-        List<Pair<String, String>> keywordsMap = new ArrayList<>();
-        if (!AUTO_COMPLETION_WORDS_LOADER.getServices().isEmpty()) {
-            for (AutoCompletionWordsProvider service : AUTO_COMPLETION_WORDS_LOADER.getServices()) {
-                keywordsMap.addAll(service.completionMethods());
-            }
-        }
-        for (Pair<String, String> pair : keywordsMap) {
+        else {
             try {
-                Class cls = Class.forName(pair.getKey());
-                List<Method> methods = Arrays.asList(cls.getMethods());
-                List<String> methodNames = methodsWithParameters(methods);
-                completionMethods.put(pair.getValue(), methodNames);
-            } catch (ClassNotFoundException ex) {
-                throw new UncheckedClassNotFoundException(ex);
+                int lineIndexStart = getCodeZone().getLineStartOffsetOfCurrentLine();
+                int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
+                String lineText = getCodeZone().getText(lineIndexStart, lineIndexEnd - lineIndexStart);
+                if(lineText.contains("\n"))
+                    getCodeZone().insert(lineText, lineIndexEnd);
+                else
+                    getCodeZone().insert("\n".concat(lineText), lineIndexEnd);
             }
+            catch (BadLocationException e) {}
         }
-        return completionMethods;
     }
 
-    private static List<String> methodsWithParameters(List<Method> methods) {
-        return methods.stream()
-                .map(method -> {
-                    String parameters = Arrays.stream(method.getParameters())
-                            .map(param -> {
-                                Class<?> type = param.getType();
-                                String typeName = type.getSimpleName();
-                                return !type.isPrimitive() ? typeName + " " + typeName.toLowerCase().replaceAll("\\W", "") : typeName + " " + typeName.substring(0, 1);
-                            })
-                            .collect(Collectors.joining(", "));
-                    return method.getName() + "(" + parameters + ")";
-                }).collect(Collectors.toList());
+    /**
+     * Creates our Find and Replace toolbars.
+     */
+    public void initSearchDialogs() {
+        // This ties the properties of the two dialogs together (match case,
+        // regex, etc.).
+        SearchContext context = new SearchContext();
+
+        // Create tool bars and tie their search contexts together also.
+        findToolBar = new FindToolBar(this);
+        findToolBar.setSearchContext(context);
+        replaceToolBar = new ReplaceToolBar(this);
+        replaceToolBar.setSearchContext(context);
+    }
+
+
+    /**
+     * Listens for events from our search dialogs and actually does the dirty
+     * work.
+     */
+    @Override
+    public void searchEvent(SearchEvent e) {
+
+        SearchEvent.Type type = e.getType();
+        SearchContext context = e.getSearchContext();
+        SearchResult result;
+
+        switch (type) {
+            default: // Prevent FindBugs warning later
+            case MARK_ALL:
+                result = SearchEngine.markAll(getCodeZone(), context);
+                break;
+            case FIND:
+                result = SearchEngine.find(getCodeZone(), context);
+                if (!result.wasFound()) {
+                    getCodeZone().setCaretPosition(0);
+                    UIManager.getLookAndFeel().provideErrorFeedback(getCodeZone());
+                }
+                break;
+            case REPLACE:
+                result = SearchEngine.replace(getCodeZone(), context);
+                if (!result.wasFound()) {
+                    UIManager.getLookAndFeel().provideErrorFeedback(getCodeZone());
+                }
+                break;
+            case REPLACE_ALL:
+                result = SearchEngine.replaceAll(getCodeZone(), context);
+                showMessageDialog(null,result.getCount()+" occurrences remplacées.");
+                break;
+        }
+
+        String text;
+        if (result.wasFound()) {
+            text = "Texte trouvé; occurrences marquées: " + result.getMarkedCount();
+        }
+        else if (type==SearchEvent.Type.MARK_ALL) {
+            if (result.getMarkedCount()>0) {
+                text = "Occurrences marquées: " + result.getMarkedCount();
+            }
+            else {
+                text = "";
+            }
+        }
+        else {
+            text = "Texte non trouvé";
+        }
+        statusBar.setLabel(text);
+    }
+
+    public static int showMessageDialog(String title, Object message) {
+        JOptionPane pane = new JOptionPane(message, JOptionPane.INFORMATION_MESSAGE);
+        JDialog dialog = pane.createDialog(null, title);
+        dialog.setAlwaysOnTop(true);
+        dialog.setVisible(true);
+        dialog.dispose();
+        Object selectedValue = pane.getValue();
+        if (selectedValue == null)
+            return JOptionPane.CLOSED_OPTION;
+
+        if (selectedValue instanceof Integer)
+            return ((Integer) selectedValue).intValue();
+        return JOptionPane.CLOSED_OPTION;
+    }
+
+    /**
+     * The status bar for this application.
+     */
+    private static class StatusBar extends JPanel {
+
+        private JLabel label;
+
+        StatusBar() {
+            label = new JLabel("Prêt");
+            setLayout(new BorderLayout());
+            add(label);
+        }
+
+        void setLabel(String label) {
+            this.label.setText(label);
+        }
+    }
+
+    public boolean hasUnsavedChanges(){
+        return getTextEditorPane().isDirty();
+    }
+
+    public TextEditorPane getTextEditorPane(){
+        return ((TextEditorPane)getCodeZone());
+    }
+
+    public RSyntaxTextArea getCodeZone(){
+        return (RSyntaxTextArea) editor.getTextArea();
     }
 
     private void showDetailNode() {
@@ -316,414 +419,257 @@ public class GroovyCodeEditor extends MasterDetailPane {
         }
     }
 
-    private void setSearchBar(VBox vBox, String searchMode) {
-        vBox.getChildren().setAll(searchBar.setMode(searchMode));
-        setDetailNode(vBox);
-        resetDividerPosition();
-        if (codeArea.getSelectedText() != null && !"".equals(codeArea.getSelectedText())) {
-            searchBar.setSearchPattern(codeArea.getSelectedText());
-        }
-    }
-
-    private void replaceAllOccurences(String wordToReplace, String text, boolean caseSensitive, boolean wordSensitive) {
-        String replaceText = searchBar.getReplaceText();
-        int ci = Pattern.CASE_INSENSITIVE;
-        String code;
-        String value = SearchBar.escapeMetaCharacters(wordToReplace);
-        if (!wordSensitive) {
-            code = caseSensitive ? StringUtils.replacePattern(text, value, replaceText) : Pattern.compile(value, ci).matcher(text).replaceAll(replaceText);
-        } else {
-            Matcher matcher = caseSensitive ? Pattern.compile("\\W" + value + "\\W").matcher(text) : Pattern.compile("\\W" + value + "\\W", ci).matcher(text);
-            String txt = text;
-            while (matcher.find()) {
-                int length = txt.length();
-                txt = txt.substring(0, matcher.start() + 1) + replaceText + txt.substring(matcher.end() - 1, length);
-                matcher = caseSensitive ? Pattern.compile("\\W" + value + "\\W").matcher(txt) : Pattern.compile("\\W" + value + "\\W", ci).matcher(txt);
-            }
-            code = txt;
-        }
-        codeArea.clear();
-        codeArea.replaceText(0, 0, code);
-        searchBar.findMatch(searchBar.getSearchedText(), codeArea.getText(), searchBar.isCaseSensitiveBoxSelected(), searchBar.isWordSensitiveBoxSelected());
-    }
-
-    private void replaceCurrentOccurence(int startPosition, int endPosition) {
-        int lastMatch = searchBar.getCurrentMatchProperty().get();
-        codeArea.replaceText(startPosition, endPosition, searchBar.getReplaceText());
-        searchBar.findMatch(searchBar.getSearchedText(), codeArea.getText(), searchBar.isCaseSensitiveBoxSelected(), searchBar.isWordSensitiveBoxSelected());
-        if (searchBar.getReplaceText().contains(searchBar.getSearchedText())) {
-            while (searchBar.getCurrentMatchProperty().get() <= lastMatch) {
-                if (searchBar.isLastMatch().get()) {
-                    break;
-                } else {
-                    searchBar.nextMatch();
-                }
-            }
-        }
-    }
-
-    private void setTabulationSpace(KeyEvent ke) {
-        if (ke.getCode() == KeyCode.TAB) {
-            ke.consume();
-            int currentLine = codeArea.getCaretSelectionBind().getParagraphIndex();
-            int fromLineStartToCaret = codeArea.getText(currentLine, 0, currentLine, codeArea.getCaretColumn()).length();
-            codeArea.insertText(codeArea.getCaretPosition(), generateTabSpace(tabSpacesToAdd(fromLineStartToCaret)));
-        } else if (pasteKeyCombination.match(ke)) {
-            ke.consume();
-            deleteSelection();
-            final Clipboard clipboard = Clipboard.getSystemClipboard();
-            if (clipboard.getString() != null) {
-                try (Scanner sc = new Scanner(clipboard.getString())) {
-                    StringBuilder formatClipboard = new StringBuilder();
-                    while (sc.hasNextLine()) {
-                        replaceTabulation(sc, formatClipboard);
-                    }
-                    codeArea.insertText(codeArea.getCaretPosition(), formatClipboard.toString());
-                }
-            }
-        }
-    }
-
     private void deleteSelection() {
-        if (!codeArea.getSelectedText().isEmpty()) {
-            codeArea.deleteText(codeArea.selectionProperty().getValue());
+        if (!getCodeZone().getSelectedText().isEmpty()) {
+            getCodeZone().getSelectedText().substring(0,0);
         }
     }
 
-    private void replaceTabulation(Scanner sc, StringBuilder sb) {
-        String line = sc.nextLine();
-        while (line.contains("\t")) {
-            line = line.replaceFirst(Character.toString('\t'), generateTabSpace(tabSpacesToAdd(line.indexOf('\t'))));
-        }
-        sb.append(line);
-        if (sc.hasNextLine()) {
-            sb.append("\n");
-        }
-    }
 
     public void setTabSize(int size) {
-        if (size <= 0) {
-            throw new IllegalArgumentException("Tabulation size might be strictly positive");
-        }
-        tabSize = size;
+        getCodeZone().setTabSize(size);
     }
 
-    private int getTabSize() {
-        return tabSize;
-    }
+//    private int getTabSize() {
+//        return getCodeZone().getTabSize();
+//    }
+//
+//    private static String generateTabSpace(int size) {
+//        return StringUtils.repeat(" ", size);
+//    }
 
-    private static String generateTabSpace(int size) {
-        return StringUtils.repeat(" ", size);
-    }
+//    private int tabSpacesToAdd(int currentPosition) {
+//        return getTabSize() - (currentPosition % getTabSize());
+//    }
 
-    private int tabSpacesToAdd(int currentPosition) {
-        return getTabSize() - (currentPosition % getTabSize());
-    }
-
-    private void findBracketsMatches(String text, String token) {
-        if (token.equals(Character.toString(')'))) {
-            searchDirection = Direction.BACKWARD;
-            highlightBracket(text, ')', '(');
-        } else if (token.equals(Character.toString('}'))) {
-            searchDirection = Direction.BACKWARD;
-            highlightBracket(text, '}', '{');
-        } else if (token.equals(Character.toString(']'))) {
-            searchDirection = Direction.BACKWARD;
-            highlightBracket(text, ']', '[');
-        } else if (token.equals(Character.toString('('))) {
-            searchDirection = Direction.FORWARD;
-            highlightBracket(text, '(', ')');
-        } else if (token.equals(Character.toString('{'))) {
-            searchDirection = Direction.FORWARD;
-            highlightBracket(text, '{', '}');
-        } else if (token.equals(Character.toString('['))) {
-            searchDirection = Direction.FORWARD;
-            highlightBracket(text, '[', ']');
-        }
-    }
-
-    private void highlightBracket(String text, char c1, char c2) {
-        int caretPosition = codeArea.caretPositionProperty().getValue();
-        int start;
-        boolean condition;
-        if (tokensPositions.contains(caretPosition - 1)) {
-            if (searchDirection == Direction.BACKWARD) {
-                start = caretPosition - 2;
-                condition = start >= 0;
-            } else {
-                start = caretPosition;
-                condition = start < text.length();
-            }
-            findBracketPosition(text, condition, c1, c2, start);
-        }
-    }
-
-    private void findBracketPosition(String text, boolean cond, char c1, char c2, int start) {
-        boolean noMatchFound = cond;
-        int counter = 0;
-        int pos = start;
-        while (noMatchFound) {
-            if (text.charAt(pos) == c1 && tokensPositions.contains(pos)) {
-                counter++;
-            } else if (text.charAt(pos) == c2 && tokensPositions.contains(pos)) {
-                if (counter == 0) {
-                    setHighlightBracketStyle(pos);
-                    break;
-                } else {
-                    counter--;
-                }
-            }
-            if (searchDirection == Direction.BACKWARD) {
-                pos--;
-                noMatchFound = pos >= 0;
-            } else {
-                pos++;
-                noMatchFound = pos < text.length();
-            }
-        }
-    }
-
-    private void setHighlightBracketStyle(int position) {
-        searchingForMatches = true;
-        matchedBracketPosition = position;
-        codeArea.setStyleSpans(0, computeHighlighting(codeArea.getText()));
-    }
-
-    private void onDragDetected(MouseEvent event) {
-        if (allowedDrag) {
-            Dragboard db = codeArea.startDragAndDrop(TransferMode.COPY_OR_MOVE);
-            ClipboardContent content = new ClipboardContent();
-            content.putString(codeArea.getSelectedText());
-            db.setContent(content);
-            event.consume();
-            allowedDrag = false;
-        }
-    }
+//    private void onDragDetected(MouseEvent event) {
+////        if (allowedDrag) {
+////            Dragboard db = codeArea.startDragAndDrop(TransferMode.COPY_OR_MOVE);
+////            ClipboardContent content = new ClipboardContent();
+////            content.putString(codeArea.getSelectedText());
+////            db.setContent(content);
+////            event.consume();
+////            allowedDrag = false;
+////        }
+//        if (allowedDrag) {
+//            DropTarget db = editor.getDropTarget();
+//            ClipboardContent content = new ClipboardContent();
+//            content.putString(getCodeZone().getSelectedText());
+//            db.setComponent(content);
+//            event.consume();
+//            allowedDrag = false;
+//        }
+//    }
 
     private void onDragOver(DragEvent event) {
         Dragboard db = event.getDragboard();
         if ((db.hasContent(EquipmentInfo.DATA_FORMAT) && db.getContent(EquipmentInfo.DATA_FORMAT) instanceof EquipmentInfo) || db.hasString()) {
-            if (event.getGestureSource() == codeArea) {
+            if (event.getGestureSource() == getCodeZone()) {
                 event.acceptTransferModes(TransferMode.MOVE);
             } else {
                 event.acceptTransferModes(TransferMode.COPY);
             }
-            CharacterHit hit = codeArea.hit(event.getX(), event.getY());
-            codeArea.displaceCaret(hit.getInsertionIndex());
+//            CharacterHit hit = getCodeZone().getcahit(event.getX(), event.getY());
+//            codeArea.displaceCaret(hit.getInsertionIndex());
         }
     }
-
+//
     private void onDragDropped(DragEvent event) {
-        codeArea.setShowCaret(Caret.CaretVisibility.AUTO);
+        //codeArea.setShowCaret(Caret.CaretVisibility.AUTO);
         Dragboard db = event.getDragboard();
         boolean success = false;
         if (db.hasContent(EquipmentInfo.DATA_FORMAT)) {
             List<EquipmentInfo> equipmentInfoList = (List<EquipmentInfo>) db.getContent(EquipmentInfo.DATA_FORMAT);
-            codeArea.insertText(codeArea.getCaretPosition(), equipmentInfoList.get(0).getIdAndName().getId());
+            getCodeZone().insert(equipmentInfoList.get(0).getIdAndName().getId(), getCodeZone().getCaretPosition());
+            //codeArea.insertText(codeArea.getCaretPosition(), equipmentInfoList.get(0).getIdAndName().getId());
             success = true;
-        } else if (db.hasString() && event.getGestureSource() != codeArea) {
-            codeArea.insertText(codeArea.getCaretPosition(), db.getString());
-            success = true;
-        } else if (event.getGestureSource() == codeArea) {
-            CharacterHit hit = codeArea.hit(event.getX(), event.getY());
-            codeArea.moveSelectedText(hit.getInsertionIndex());
+        } else if (db.hasString() && event.getGestureSource() != getCodeZone()) {
+            getCodeZone().insert(db.getString(), getCodeZone().getCaretPosition());
             success = true;
         }
+//        else if (event.getGestureSource() == getCodeZone()) {
+//            CharacterHit hit = getCodeZone().hit(event.getX(), event.getY());
+//            codeArea.moveSelectedText(hit.getInsertionIndex());
+//            success = true;
+//        }
         event.setDropCompleted(success);
         event.consume();
     }
 
     public void setCode(String code) {
-        codeArea.clear();
-        codeArea.replaceText(0, 0, code);
-        codeArea.showParagraphAtTop(0);
-        codeArea.getUndoManager().forgetHistory();
-        resetDividerPosition();
+        getCodeZone().setText(code);
     }
 
     public String getCode() {
-        return codeArea.getText();
+        return getCodeZone().getText();
     }
 
-    public ObservableValue<String> codeProperty() {
-        return codeArea.textProperty();
-    }
-
-    public ObservableValue<Integer> caretPositionProperty() {
-        return codeArea.caretPositionProperty();
-    }
+//    public ObservableValue<String> codeProperty() {
+//        return codeArea.textProperty();
+//    }
+//
+//    public ObservableValue<Integer> caretPositionProperty() {
+//        return codeArea.caretPositionProperty();
+//    }
 
     public String currentPosition() {
-        int caretColumn = codeArea.getCaretColumn() + 1;
-        int paragraphIndex = codeArea.getCaretSelectionBind().getParagraphIndex() + 1;
+        int caretColumn = getCodeZone().getCaretPosition() + 1;
+        int paragraphIndex = getCodeZone().getCaretLineNumber() + 1;
         return paragraphIndex + ":" + caretColumn;
     }
 
-    private static String styleClass(int tokenType) {
-        switch (tokenType) {
-            case GroovyTokenTypes.LCURLY:
-            case GroovyTokenTypes.RCURLY:
-                return "brace";
+//    private static String styleClass ( int tokenType){
+//        switch (tokenType) {
+//            case GroovyTokenTypes.LCURLY:
+//            case GroovyTokenTypes.RCURLY:
+//                return "brace";
+//
+//            case GroovyTokenTypes.LBRACK:
+//            case GroovyTokenTypes.RBRACK:
+//                return "bracket";
+//
+//            case GroovyTokenTypes.LPAREN:
+//            case GroovyTokenTypes.RPAREN:
+//                return "paren";
+//
+//            case GroovyTokenTypes.SEMI:
+//                return "semicolon";
+//
+//            case GroovyTokenTypes.STRING_LITERAL:
+//            case GroovyTokenTypes.REGEXP_LITERAL:
+//            case GroovyTokenTypes.DOLLAR_REGEXP_LITERAL:
+//                return "string";
+//
+//            case GroovyTokenTypes.ML_COMMENT:
+//            case GroovyTokenTypes.SH_COMMENT:
+//            case GroovyTokenTypes.SL_COMMENT:
+//                return "comment";
+//
+//            case GroovyTokenTypes.ABSTRACT:
+//            case GroovyTokenTypes.CLASS_DEF:
+//            case GroovyTokenTypes.EXTENDS_CLAUSE:
+//            case GroovyTokenTypes.IMPLEMENTS_CLAUSE:
+//            case GroovyTokenTypes.IMPORT:
+//            case GroovyTokenTypes.LITERAL_as:
+//            case GroovyTokenTypes.LITERAL_assert:
+//            case GroovyTokenTypes.LITERAL_boolean:
+//            case GroovyTokenTypes.LITERAL_break:
+//            case GroovyTokenTypes.LITERAL_byte:
+//            case GroovyTokenTypes.LITERAL_case:
+//            case GroovyTokenTypes.LITERAL_catch:
+//            case GroovyTokenTypes.LITERAL_char:
+//            case GroovyTokenTypes.LITERAL_class:
+//            case GroovyTokenTypes.LITERAL_continue:
+//            case GroovyTokenTypes.LITERAL_def:
+//            case GroovyTokenTypes.LITERAL_default:
+//            case GroovyTokenTypes.LITERAL_double:
+//            case GroovyTokenTypes.LITERAL_else:
+//            case GroovyTokenTypes.LITERAL_enum:
+//            case GroovyTokenTypes.LITERAL_extends:
+//            case GroovyTokenTypes.LITERAL_false:
+//            case GroovyTokenTypes.LITERAL_finally:
+//            case GroovyTokenTypes.LITERAL_float:
+//            case GroovyTokenTypes.LITERAL_for:
+//            case GroovyTokenTypes.LITERAL_if:
+//            case GroovyTokenTypes.LITERAL_implements:
+//            case GroovyTokenTypes.LITERAL_import:
+//            case GroovyTokenTypes.LITERAL_in:
+//            case GroovyTokenTypes.LITERAL_instanceof:
+//            case GroovyTokenTypes.LITERAL_int:
+//            case GroovyTokenTypes.LITERAL_interface:
+//            case GroovyTokenTypes.LITERAL_long:
+//            case GroovyTokenTypes.LITERAL_native:
+//            case GroovyTokenTypes.LITERAL_new:
+//            case GroovyTokenTypes.LITERAL_null:
+//            case GroovyTokenTypes.LITERAL_package:
+//            case GroovyTokenTypes.LITERAL_private:
+//            case GroovyTokenTypes.LITERAL_protected:
+//            case GroovyTokenTypes.LITERAL_public:
+//            case GroovyTokenTypes.LITERAL_return:
+//            case GroovyTokenTypes.LITERAL_short:
+//            case GroovyTokenTypes.LITERAL_static:
+//            case GroovyTokenTypes.LITERAL_super:
+//            case GroovyTokenTypes.LITERAL_switch:
+//            case GroovyTokenTypes.LITERAL_synchronized:
+//            case GroovyTokenTypes.LITERAL_this:
+//            case GroovyTokenTypes.LITERAL_threadsafe:
+//            case GroovyTokenTypes.LITERAL_throw:
+//            case GroovyTokenTypes.LITERAL_throws:
+//            case GroovyTokenTypes.LITERAL_transient:
+//            case GroovyTokenTypes.LITERAL_true:
+//            case GroovyTokenTypes.LITERAL_try:
+//            case GroovyTokenTypes.LITERAL_void:
+//            case GroovyTokenTypes.LITERAL_volatile:
+//            case GroovyTokenTypes.LITERAL_while:
+//            case GroovyTokenTypes.PACKAGE_DEF:
+//            case GroovyTokenTypes.UNUSED_CONST:
+//            case GroovyTokenTypes.UNUSED_DO:
+//            case GroovyTokenTypes.UNUSED_GOTO:
+//            case GroovyTokenTypes.TYPE:
+//                return "keyword";
+//
+//            default:
+//                return null;
+//        }
+//    }
 
-            case GroovyTokenTypes.LBRACK:
-            case GroovyTokenTypes.RBRACK:
-                return "bracket";
+//    private int length (GroovySourceToken token){
+//        int offset1 = codeArea.getDocument().position(token.getLine() - 1, token.getColumn() - 1).toOffset();
+//        int offset2 = codeArea.getDocument().position(token.getLineLast() - 1, token.getColumnLast() - 1).toOffset();
+//        return offset2 - offset1;
+//    }
 
-            case GroovyTokenTypes.LPAREN:
-            case GroovyTokenTypes.RPAREN:
-                return "paren";
+//    private void buildStyle (String styleClass, StyleSpansBuilder < Collection < String >> spansBuilder,
+//                             int length, Token token){
+//        if (styleClass != null) {
+//            spansBuilder.add(Collections.singleton(styleClass), length);
+//        } else if (!KEYWORDS_LOADER.getServices().isEmpty()) {
+//            for (KeywordsProvider styleExtension : KEYWORDS_LOADER.getServices()) {
+//                String style = styleExtension.styleClass(token.getText());
+//                if (style != null) {
+//                    spansBuilder.add(Collections.singleton(style), length);
+//                } else {
+//                    spansBuilder.add(Collections.emptyList(), length);
+//                }
+//            }
+//        } else {
+//            spansBuilder.add(Collections.emptyList(), length);
+//        }
+//    }
 
-            case GroovyTokenTypes.SEMI:
-                return "semicolon";
-
-            case GroovyTokenTypes.STRING_LITERAL:
-            case GroovyTokenTypes.REGEXP_LITERAL:
-            case GroovyTokenTypes.DOLLAR_REGEXP_LITERAL:
-                return "string";
-
-            case GroovyTokenTypes.ML_COMMENT:
-            case GroovyTokenTypes.SH_COMMENT:
-            case GroovyTokenTypes.SL_COMMENT:
-                return "comment";
-
-            case GroovyTokenTypes.ABSTRACT:
-            case GroovyTokenTypes.CLASS_DEF:
-            case GroovyTokenTypes.EXTENDS_CLAUSE:
-            case GroovyTokenTypes.IMPLEMENTS_CLAUSE:
-            case GroovyTokenTypes.IMPORT:
-            case GroovyTokenTypes.LITERAL_as:
-            case GroovyTokenTypes.LITERAL_assert:
-            case GroovyTokenTypes.LITERAL_boolean:
-            case GroovyTokenTypes.LITERAL_break:
-            case GroovyTokenTypes.LITERAL_byte:
-            case GroovyTokenTypes.LITERAL_case:
-            case GroovyTokenTypes.LITERAL_catch:
-            case GroovyTokenTypes.LITERAL_char:
-            case GroovyTokenTypes.LITERAL_class:
-            case GroovyTokenTypes.LITERAL_continue:
-            case GroovyTokenTypes.LITERAL_def:
-            case GroovyTokenTypes.LITERAL_default:
-            case GroovyTokenTypes.LITERAL_double:
-            case GroovyTokenTypes.LITERAL_else:
-            case GroovyTokenTypes.LITERAL_enum:
-            case GroovyTokenTypes.LITERAL_extends:
-            case GroovyTokenTypes.LITERAL_false:
-            case GroovyTokenTypes.LITERAL_finally:
-            case GroovyTokenTypes.LITERAL_float:
-            case GroovyTokenTypes.LITERAL_for:
-            case GroovyTokenTypes.LITERAL_if:
-            case GroovyTokenTypes.LITERAL_implements:
-            case GroovyTokenTypes.LITERAL_import:
-            case GroovyTokenTypes.LITERAL_in:
-            case GroovyTokenTypes.LITERAL_instanceof:
-            case GroovyTokenTypes.LITERAL_int:
-            case GroovyTokenTypes.LITERAL_interface:
-            case GroovyTokenTypes.LITERAL_long:
-            case GroovyTokenTypes.LITERAL_native:
-            case GroovyTokenTypes.LITERAL_new:
-            case GroovyTokenTypes.LITERAL_null:
-            case GroovyTokenTypes.LITERAL_package:
-            case GroovyTokenTypes.LITERAL_private:
-            case GroovyTokenTypes.LITERAL_protected:
-            case GroovyTokenTypes.LITERAL_public:
-            case GroovyTokenTypes.LITERAL_return:
-            case GroovyTokenTypes.LITERAL_short:
-            case GroovyTokenTypes.LITERAL_static:
-            case GroovyTokenTypes.LITERAL_super:
-            case GroovyTokenTypes.LITERAL_switch:
-            case GroovyTokenTypes.LITERAL_synchronized:
-            case GroovyTokenTypes.LITERAL_this:
-            case GroovyTokenTypes.LITERAL_threadsafe:
-            case GroovyTokenTypes.LITERAL_throw:
-            case GroovyTokenTypes.LITERAL_throws:
-            case GroovyTokenTypes.LITERAL_transient:
-            case GroovyTokenTypes.LITERAL_true:
-            case GroovyTokenTypes.LITERAL_try:
-            case GroovyTokenTypes.LITERAL_void:
-            case GroovyTokenTypes.LITERAL_volatile:
-            case GroovyTokenTypes.LITERAL_while:
-            case GroovyTokenTypes.PACKAGE_DEF:
-            case GroovyTokenTypes.UNUSED_CONST:
-            case GroovyTokenTypes.UNUSED_DO:
-            case GroovyTokenTypes.UNUSED_GOTO:
-            case GroovyTokenTypes.TYPE:
-                return "keyword";
-
-            default:
-                return null;
-        }
-    }
-
-    private int length(GroovySourceToken token) {
-        int offset1 = codeArea.getDocument().position(token.getLine() -  1, token.getColumn() - 1).toOffset();
-        int offset2 = codeArea.getDocument().position(token.getLineLast() - 1, token.getColumnLast() - 1).toOffset();
-        return offset2 - offset1;
-    }
-
-    private void buildStyle(String styleClass, StyleSpansBuilder<Collection<String>> spansBuilder, int length, Token token) {
-        if (styleClass != null) {
-            int tokenPostion = codeArea.getDocument().position(token.getLine() - 1, token.getColumn() - 1).toOffset();
-            bracketStyleBuilder(styleClass, spansBuilder, length, tokenPostion);
-            if (!searchingForMatches && (styleClass.equals("brace") || styleClass.equals("bracket") || styleClass.equals("paren"))) {
-                tokensPositions.add(tokenPostion);
-            }
-        } else if (!KEYWORDS_LOADER.getServices().isEmpty()) {
-            for (KeywordsProvider styleExtension : KEYWORDS_LOADER.getServices()) {
-                String style = styleExtension.styleClass(token.getText());
-                if (style != null) {
-                    spansBuilder.add(Collections.singleton(style), length);
-                } else {
-                    spansBuilder.add(Collections.emptyList(), length);
-                }
-            }
-        } else {
-            spansBuilder.add(Collections.emptyList(), length);
-        }
-    }
-
-    private void bracketStyleBuilder(String styleClass, StyleSpansBuilder<Collection<String>> spansBuilder, int length, int tokenPostion) {
-        int value = codeArea.caretPositionProperty().getValue();
-        if (searchingForMatches && (tokenPostion == value - 1 || tokenPostion == matchedBracketPosition)) {
-            spansBuilder.add(Collections.singleton(MATCHED_BRACKET_STYLE), length);
-        } else {
-            spansBuilder.add(Collections.singleton(styleClass), length);
-        }
-    }
-
-    private StyleSpans<Collection<String>> computeHighlighting(String text) {
-        Stopwatch stopwatch = Stopwatch.createStarted();
-        tokensPositions.clear();
-
-        boolean added = false;
-        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-        if (!text.isEmpty()) {
-            SourceBuffer sourceBuffer = new SourceBuffer();
-            try (UnicodeEscapingReader reader = new UnicodeEscapingReader(new StringReader(text), sourceBuffer)) {
-                GroovyLexer lexer = new GroovyLexer(new UnicodeLexerSharedInputState(reader));
-                lexer.setWhitespaceIncluded(true);
-                TokenStream tokenStream = lexer.plumb();
-                Token token = tokenStream.nextToken();
-                while (token.getType() != Token.EOF_TYPE) {
-                    String styleClass = styleClass(token.getType());
-                    int length = length((GroovySourceToken) token);
-                    buildStyle(styleClass, spansBuilder, length, token);
-                    added = true;
-                    token = tokenStream.nextToken();
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            } catch (TokenStreamException e) {
-                LOGGER.trace(e.getMessage());
-            }
-        }
-
-        if (!added) {
-            spansBuilder.add(Collections.emptyList(), 0);
-        }
-
-        stopwatch.stop();
-        LOGGER.trace("Highlighting of {} characters computed in {} ms", text.length(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
-
-        return spansBuilder.create();
-    }
+//    private StyleSpans<Collection<String>> computeHighlighting (String text){
+//        Stopwatch stopwatch = Stopwatch.createStarted();
+//
+//        boolean added = false;
+//        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+//        if (!text.isEmpty()) {
+//            SourceBuffer sourceBuffer = new SourceBuffer();
+//            try (UnicodeEscapingReader reader = new UnicodeEscapingReader(new StringReader(text), sourceBuffer)) {
+//                GroovyLexer lexer = new GroovyLexer(new UnicodeLexerSharedInputState(reader));
+//                lexer.setWhitespaceIncluded(true);
+//                TokenStream tokenStream = lexer.plumb();
+//                Token token = tokenStream.nextToken();
+//                while (token.getType() != Token.EOF_TYPE) {
+//                    String styleClass = styleClass(token.getType());
+//                    int length = length((GroovySourceToken) token);
+//                    buildStyle(styleClass, spansBuilder, length, token);
+//                    added = true;
+//                    token = tokenStream.nextToken();
+//                }
+//            } catch (IOException e) {
+//                throw new UncheckedIOException(e);
+//            } catch (TokenStreamException e) {
+//                LOGGER.trace(e.getMessage());
+//            }
+//        }
+//
+//        if (!added) {
+//            spansBuilder.add(Collections.emptyList(), 0);
+//        }
+//
+//        stopwatch.stop();
+//        LOGGER.trace("Highlighting of {} characters computed in {} ms", text.length(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
+//
+//        return spansBuilder.create();
+//    }
 }
