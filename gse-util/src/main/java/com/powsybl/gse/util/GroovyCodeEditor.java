@@ -84,20 +84,20 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0) {
                     codeZone.insert(String.valueOf("#{[|\\^@]€¤".charAt("\"'(-_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
                 }
-                if(e.getKeyChar() == '/' && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                if (e.getKeyChar() == '/' && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
                     commentLines(codeZone.getSelectionStart(), codeZone.getSelectionEnd());
                 }
                 if (e.getKeyCode() == 127 && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
                     e.consume();
                     deleteWord(codeZone.getCaretPosition());
                 }
-                if(e.getKeyCode() == 40 && (e.getModifiers() & KeyEvent.CTRL_MASK + KeyEvent.SHIFT_MASK) != 0) {
+                if (e.getKeyCode() == 40 && (e.getModifiers() & KeyEvent.CTRL_MASK + KeyEvent.SHIFT_MASK) != 0) {
                     duplicateLine(codeZone.getSelectionEnd());
                 }
             }
         });
         // Adding keywords highlighting
-        AbstractTokenMakerFactory atmf = (AbstractTokenMakerFactory)TokenMakerFactory.getDefaultInstance();
+        AbstractTokenMakerFactory atmf = (AbstractTokenMakerFactory) TokenMakerFactory.getDefaultInstance();
         atmf.putMapping("text/myLanguage", "com.powsybl.gse.util.GroovySyntax");
         codeZone.setSyntaxEditingStyle("text/myLanguage");
 
@@ -144,7 +144,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         JComboBox<Integer> tabSize = new JComboBox<>(tabSizes);
         tabSize.setPreferredSize(new Dimension(80, 25));
         tabSize.setSelectedItem(new Integer(4));
-        tabSize.addActionListener(e -> setTabSize((int)tabSize.getSelectedItem()));
+        tabSize.addActionListener(e -> setTabSize((int) tabSize.getSelectedItem()));
 
         JPanel bottomPane = new JPanel(new FlowLayout(FlowLayout.LEADING));
         bottomPane.add(new JLabel("Taille Tabulation: "));
@@ -232,16 +232,18 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         return getCodeZone().getSelectedText();
     }
 
-    public void commentLines(int start, int end){
+    public void commentLines(int start, int end) {
         try {
             int lineNumberStart = getCodeZone().getLineOfOffset(start);
             int lineNumberEnd = getCodeZone().getLineOfOffset(end);
-            for(int i=lineNumberStart ; i<=lineNumberEnd ; i++) {
+            for (int i = lineNumberStart ; i <= lineNumberEnd ; i++) {
                 int lineIndexStart = getCodeZone().getLineStartOffset(i);
-                if(getCodeZone().getText(lineIndexStart, 2).equals("//"))
-                    getCodeZone().replaceRange("", lineIndexStart, lineIndexStart+2);
-                else
+                if (getCodeZone().getText(lineIndexStart, 2).equals("//")) {
+                    getCodeZone().replaceRange("", lineIndexStart, lineIndexStart + 2);
+                }
+                else {
                     getCodeZone().replaceRange("//", lineIndexStart, lineIndexStart);
+                }
             }
         }
         catch (BadLocationException e) {}
@@ -250,18 +252,21 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
     public void deleteWord(int start){
         try {
             int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
-            String[] words = getCodeZone().getText(start, lineIndexEnd-start).split("[\\s|.|(|)|/|\"|\'|=|+|-|*|{|}]");
-            if (words.length != 0 && words[0].length()!=0) {
+            String[] words = getCodeZone().getText(start, lineIndexEnd - start).split("[\\s|.|(|)|/|\"|\'|=|+|-|*|{|}]");
+            if (words.length != 0 && words[0].length() != 0) {
                 getCodeZone().replaceRange("", start, start + words[0].length());
             }
             else {
                 getCodeZone().replaceRange("", start, start + 1);
             }
-        } catch (BadLocationException e) {}
+        }
+        catch (BadLocationException e) {
+            return;
+        }
     }
 
-    public void duplicateLine(int end){
-        if(getSelectedText() != null) {
+    public void duplicateLine(int end) {
+        if (getSelectedText() != null) {
             getCodeZone().insert(getSelectedText(), end);
         }
         else {
@@ -269,12 +274,16 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 int lineIndexStart = getCodeZone().getLineStartOffsetOfCurrentLine();
                 int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
                 String lineText = getCodeZone().getText(lineIndexStart, lineIndexEnd - lineIndexStart);
-                if(lineText.contains("\n"))
+                if(lineText.contains("\n")) {
                     getCodeZone().insert(lineText, lineIndexEnd);
-                else
+                }
+                else {
                     getCodeZone().insert("\n".concat(lineText), lineIndexEnd);
+                }
             }
-            catch (BadLocationException e) {}
+            catch (BadLocationException e) {
+                return;
+            }
         }
     }
 
@@ -300,7 +309,6 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
      */
     @Override
     public void searchEvent(SearchEvent e) {
-
         SearchEvent.Type type = e.getType();
         SearchContext context = e.getSearchContext();
         SearchResult result;
@@ -325,7 +333,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 break;
             case REPLACE_ALL:
                 result = SearchEngine.replaceAll(getCodeZone(), context);
-                showMessageDialog(null,result.getCount()+" occurrences remplacées.");
+                showMessageDialog(null,result.getCount() + " occurrences remplacées.");
                 break;
         }
 
