@@ -6,7 +6,6 @@
  */
 package com.powsybl.gse.util;
 
-import com.sun.org.apache.xerces.internal.util.SynchronizedSymbolTable;
 import javafx.embed.swing.SwingNode;
 import javafx.scene.Scene;
 import javafx.scene.input.DragEvent;
