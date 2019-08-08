@@ -9,7 +9,6 @@ package com.powsybl.gse.util;
 import com.sun.org.apache.xerces.internal.util.SynchronizedSymbolTable;
 import javafx.embed.swing.SwingNode;
 import javafx.scene.Scene;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
@@ -29,11 +28,8 @@ import org.fife.ui.rtextarea.*;
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
 import java.awt.dnd.*;
 import java.awt.event.*;
-import java.lang.reflect.Array;
-import java.util.Arrays;
 import java.util.List;
 
 /**
