@@ -16,17 +16,23 @@ import com.powsybl.gse.util.GseUtil;
 import com.powsybl.gse.util.NodeChooser;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.geometry.Side;
+import javafx.scene.Group;
 import javafx.scene.control.*;
+import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Text;
 import javafx.stage.Popup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.util.*;
+import java.util.List;
 import java.util.prefs.Preferences;
 import java.util.stream.Collectors;
 
@@ -130,12 +136,47 @@ public class GsePane extends StackPane {
         popup.show(getScene().getWindow());
     }
 
-    private void showRaccourcis() {
+    private void showShortcuts() {
         Popup popup = new Popup();
         popup.setAutoHide(true);
-        TextField title = new TextField("Raccourcis Clavier");
-        Button button = new Button("test");
-        Pane pane = new Pane(title, button);
+
+        HashMap<String,String> shortcutsList = new HashMap<>();
+        shortcutsList.put("CTRL + Z", "Undo");
+        shortcutsList.put("CTRL + Y", "Redo");
+        shortcutsList.put("CTRL + X", "Cut");
+        shortcutsList.put("CTRL + C", "Copy");
+        shortcutsList.put("CTRL + V", "Paste");
+        shortcutsList.put("CTRL + S", "Save");
+        shortcutsList.put("CTRL + F", "Find");
+        shortcutsList.put("CTRL + R", "Replace");
+        shortcutsList.put("CTRL + A", "Select All");
+        shortcutsList.put("CTRL + /", "Comment Line");
+        shortcutsList.put("CTRL + D", "Delete Line");
+        shortcutsList.put("ALT + Down/Up", "Move Line");
+        shortcutsList.put("CTRL + DEL", "Delete Next Word");
+        shortcutsList.put("CTRL + SHIFT + Down/Up", "Duplicate Line/Word");
+
+        GridPane gridPane = new GridPane();
+        gridPane.setStyle("-fx-padding: 10;" +
+                "-fx-border-style: solid inside;" +
+                "-fx-border-width: 2;" +
+                "-fx-border-radius: 5;" +
+                "-fx-border-color: DeepSkyBlue;");
+        gridPane.setBackground(new Background(new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, Insets.EMPTY)));
+        gridPane.setAlignment(Pos.CENTER);
+        gridPane.setHgap(50);
+        gridPane.setVgap(10);
+        Iterator it = shortcutsList.entrySet().iterator();
+        int i = 0;
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry)it.next();
+            Text text = new Text((String) pair.getKey());
+            text.setStyle("-fx-font-weight: bold;");
+            gridPane.add(text, 0, i);
+            gridPane.add(new Text((String) pair.getValue()), 1, i);
+            i++;
+        }
+        Pane pane = new Pane(gridPane);
         popup.getContent().addAll(pane);
         popup.show(getScene().getWindow());
     }
@@ -182,7 +223,7 @@ public class GsePane extends StackPane {
         MenuItem aboutMenuItem = new MenuItem(RESOURCE_BUNDLE.getString("About"));
         MenuItem shortcutMenuItem = new MenuItem("Shortcuts");
         aboutMenuItem.setOnAction(event -> showAbout());
-        shortcutMenuItem.setOnAction(event -> showRaccourcis());
+        shortcutMenuItem.setOnAction(event -> showShortcuts());
         contextMenu.getItems().add(aboutMenuItem);
         contextMenu.getItems().add(shortcutMenuItem);
 

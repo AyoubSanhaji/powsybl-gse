@@ -6,8 +6,10 @@
  */
 package com.powsybl.gse.util;
 
+import com.sun.org.apache.xerces.internal.util.SynchronizedSymbolTable;
 import javafx.embed.swing.SwingNode;
 import javafx.scene.Scene;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
@@ -22,17 +24,16 @@ import org.fife.ui.autocomplete.BasicCompletion;
 import org.fife.ui.autocomplete.CompletionProvider;
 import org.fife.ui.autocomplete.DefaultCompletionProvider;
 import org.fife.ui.rsyntaxtextarea.*;
-import org.fife.ui.rtextarea.RTextScrollPane;
-import org.fife.ui.rtextarea.SearchContext;
-import org.fife.ui.rtextarea.SearchEngine;
-import org.fife.ui.rtextarea.SearchResult;
+import org.fife.ui.rtextarea.*;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
+import java.awt.datatransfer.Clipboard;
+import java.awt.dnd.*;
+import java.awt.event.*;
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -71,12 +72,10 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         codeZone.setCurrentLineHighlightColor(new Color(15132390));
         // Font size
         codeZone.setFont(new Font("Comic Sans MS", Font.BOLD, 14));
-        // Drag n Drop
-//        codeZone.setDragEnabled(false);
-//        RTATextTransferHandler uh = new RTATextTransferHandler();
-//        codeZone.setTransferHandler(uh);
 
-        // Handling the ALT GR events
+//        codeZone.setDropMode(DropMode.INSERT);
+//        editor.getTextArea().setDragEnabled(true);
+
         codeZone.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(java.awt.event.KeyEvent e) {
@@ -91,11 +90,13 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                     e.consume();
                     deleteWord(codeZone.getCaretPosition());
                 }
-                if (e.getKeyCode() == 40 && (e.getModifiers() & KeyEvent.CTRL_MASK + KeyEvent.SHIFT_MASK) != 0) {
-                    duplicateLine(codeZone.getSelectionEnd());
+                int down = KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK;
+                if ((e.getKeyCode() == 40 || e.getKeyCode() == 38) && (e.getModifiersEx() & down) == down) {
+                    duplicateLine(codeZone.getSelectionStart(), codeZone.getSelectionEnd(), e.getKeyCode());
                 }
             }
         });
+
         // Adding keywords highlighting
         AbstractTokenMakerFactory atmf = (AbstractTokenMakerFactory) TokenMakerFactory.getDefaultInstance();
         atmf.putMapping("text/myLanguage", "com.powsybl.gse.util.GroovySyntax");
@@ -147,7 +148,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         tabSize.addActionListener(e -> setTabSize((int) tabSize.getSelectedItem()));
 
         JPanel bottomPane = new JPanel(new FlowLayout(FlowLayout.LEADING));
-        bottomPane.add(new JLabel("Taille Tabulation: "));
+        bottomPane.add(new JLabel("Tabulation Size: "));
         bottomPane.add(tabSize);
         bottomPane.add(statusBar);
 
@@ -156,9 +157,9 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         swingNode.setContent(panelSwing);
 
         Action a = csp.addBottomComponent(KeyStroke.getKeyStroke(KeyEvent.VK_F, ActionEvent.CTRL_MASK), findToolBar);
-        a.putValue(Action.NAME, "Rechercher");
+        a.putValue(Action.NAME, "Find");
         a = csp.addBottomComponent(KeyStroke.getKeyStroke(KeyEvent.VK_R, ActionEvent.CTRL_MASK), replaceToolBar);
-        a.putValue(Action.NAME, "Remplacer");
+        a.putValue(Action.NAME, "Replace");
 
         return swingNode;
     }
@@ -176,30 +177,11 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         //setMasterNode(new VirtualizedScrollPane(codeArea));
         setMasterNode(initSwing());
         setShowDetailNode(false);
-
-//        VBox vBox = new VBox();
-//        vBox.getChildren().add(searchBar);
-//        setDetailNode(vBox);
-//        setDetailSide(Side.TOP);
-//        setShowDetailNode(false);
-
-//        setOnKeyPressed((KeyEvent ke) -> {
-//            if (searchKeyCombination.match(ke)) {
-//                setSearchBar(vBox, "search");
-//                showDetailNode();
-//                searchBar.requestFocus();
-//            } else if (replaceWordKeyCombination.match(ke)) {
-//                setShowDetailNode(false);
-//                setSearchBar(vBox, "replace");
-//                searchBar.setReplaceAllAction(event -> replaceAllOccurences(searchBar.getSearchedText(), codeArea.getText(), searchBar.isCaseSensitiveBoxSelected(), searchBar.isWordSensitiveBoxSelected()));
-//                searchBar.setReplaceAction(event -> replaceCurrentOccurence(searchBar.getCurrentMatchStart(), searchBar.getCurrentMatchEnd()));
-//                showDetailNode();
-//                searchBar.requestFocus();
-//            }
-//
-//        });
-        //editor.getTextArea().setDr
-//        codeArea.addEventFilter(KeyEvent.KEY_PRESSED, this::setTabulationSpace);
+        // Drag n Drop
+//        getCodeZone().setDragEnabled(false);
+//        getCodeZone().setDropMode(DropMode.INSERT);
+//        RTATextTransferHandler uh = new RTATextTransferHandler();
+//        getCodeZone().setTransferHandler(uh);
 //        editor.getTextArea().setOnDragEntered(event -> codeArea.setShowCaret(Caret.CaretVisibility.ON));
 //        codeArea.setOnDragExited(event -> codeArea.setShowCaret(Caret.CaretVisibility.AUTO));
 //        getTextEditorPane().setOnDragDetected(this::onDragDetected);
@@ -263,18 +245,33 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         }
     }
 
-    public void duplicateLine(int end) {
+    public void duplicateLine(int start, int end, int key) {
         if (getSelectedText() != null) {
-            getCodeZone().insert(getSelectedText(), end);
+            if (key == 40) {
+                getCodeZone().insert(getSelectedText(), end);
+            }
+            if (key == 38) {
+                getCodeZone().insert(getSelectedText(), start);
+            }
         } else {
             try {
                 int lineIndexStart = getCodeZone().getLineStartOffsetOfCurrentLine();
                 int lineIndexEnd = getCodeZone().getLineEndOffsetOfCurrentLine();
                 String lineText = getCodeZone().getText(lineIndexStart, lineIndexEnd - lineIndexStart);
                 if (lineText.contains("\n")) {
-                    getCodeZone().insert(lineText, lineIndexEnd);
+                    if (key == 40) {
+                        getCodeZone().insert(lineText, lineIndexEnd);
+                    }
+                    if (key == 38) {
+                        getCodeZone().insert(lineText, lineIndexStart);
+                    }
                 } else {
-                    getCodeZone().insert("\n".concat(lineText), lineIndexEnd);
+                    if (key == 40) {
+                        getCodeZone().insert("\n".concat(lineText), lineIndexEnd);
+                    }
+                    if (key == 38) {
+                        getCodeZone().insert("\n".concat(lineText), lineIndexStart);
+                    }
                 }
             } catch (BadLocationException e) {
                 return;
@@ -283,11 +280,10 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
     }
 
     /**
-     * Creates our Find and Replace toolbars.
+     * Creates the Find and Replace toolbars.
      */
     public void initSearchDialogs() {
-        // This ties the properties of the two dialogs together (match case,
-        // regex, etc.).
+        // This ties the properties of the two dialogs together (match case, regex, etc.).
         SearchContext context = new SearchContext();
 
         // Create tool bars and tie their search contexts together also.
@@ -299,8 +295,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 
 
     /**
-     * Listens for events from our search dialogs and actually does the dirty
-     * work.
+     * Listens for events from the search dialogs and execute the chosen action
      */
     @Override
     public void searchEvent(SearchEvent e) {
@@ -309,7 +304,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         SearchResult result;
 
         switch (type) {
-            default: // Prevent FindBugs warning later
+            default:
             case MARK_ALL:
                 result = SearchEngine.markAll(getCodeZone(), context);
                 break;
@@ -334,15 +329,15 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 
         String text;
         if (result.wasFound()) {
-            text = "Texte trouvé; occurrences marquées: " + result.getMarkedCount();
+            text = "Text found; marked occurrences: " + result.getMarkedCount();
         } else if (type == SearchEvent.Type.MARK_ALL) {
             if (result.getMarkedCount() > 0) {
-                text = "Occurrences marquées: " + result.getMarkedCount();
+                text = "Marked occurrences: " + result.getMarkedCount();
             } else {
                 text = "";
             }
         } else {
-            text = "Texte non trouvé";
+            text = "Text not found";
         }
         statusBar.setLabel(text);
     }
@@ -372,7 +367,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         private JLabel label;
 
         StatusBar() {
-            label = new JLabel("Prêt");
+            label = new JLabel("Ready");
             setLayout(new BorderLayout());
             add(label);
         }
@@ -410,18 +405,6 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         getCodeZone().setTabSize(size);
     }
 
-//    private int getTabSize() {
-//        return getCodeZone().getTabSize();
-//    }
-//
-//    private static String generateTabSpace(int size) {
-//        return StringUtils.repeat(" ", size);
-//    }
-
-//    private int tabSpacesToAdd(int currentPosition) {
-//        return getTabSize() - (currentPosition % getTabSize());
-//    }
-
 //    private void onDragDetected(MouseEvent event) {
 ////        if (allowedDrag) {
 ////            Dragboard db = codeArea.startDragAndDrop(TransferMode.COPY_OR_MOVE);
@@ -433,8 +416,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 ////        }
 //        if (allowedDrag) {
 //            DropTarget db = editor.getDropTarget();
-//            ClipboardContent content = new ClipboardContent();
-//            content.putString(getCodeZone().getSelectedText());
+//            Clipboard content = new Clipboard(getCodeZone().getSelectedText());
 //            db.setComponent(content);
 //            event.consume();
 //            allowedDrag = false;
@@ -497,159 +479,4 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         int paragraphIndex = getCodeZone().getCaretLineNumber() + 1;
         return paragraphIndex + ":" + caretColumn;
     }
-
-//    private static String styleClass ( int tokenType){
-//        switch (tokenType) {
-//            case GroovyTokenTypes.LCURLY:
-//            case GroovyTokenTypes.RCURLY:
-//                return "brace";
-//
-//            case GroovyTokenTypes.LBRACK:
-//            case GroovyTokenTypes.RBRACK:
-//                return "bracket";
-//
-//            case GroovyTokenTypes.LPAREN:
-//            case GroovyTokenTypes.RPAREN:
-//                return "paren";
-//
-//            case GroovyTokenTypes.SEMI:
-//                return "semicolon";
-//
-//            case GroovyTokenTypes.STRING_LITERAL:
-//            case GroovyTokenTypes.REGEXP_LITERAL:
-//            case GroovyTokenTypes.DOLLAR_REGEXP_LITERAL:
-//                return "string";
-//
-//            case GroovyTokenTypes.ML_COMMENT:
-//            case GroovyTokenTypes.SH_COMMENT:
-//            case GroovyTokenTypes.SL_COMMENT:
-//                return "comment";
-//
-//            case GroovyTokenTypes.ABSTRACT:
-//            case GroovyTokenTypes.CLASS_DEF:
-//            case GroovyTokenTypes.EXTENDS_CLAUSE:
-//            case GroovyTokenTypes.IMPLEMENTS_CLAUSE:
-//            case GroovyTokenTypes.IMPORT:
-//            case GroovyTokenTypes.LITERAL_as:
-//            case GroovyTokenTypes.LITERAL_assert:
-//            case GroovyTokenTypes.LITERAL_boolean:
-//            case GroovyTokenTypes.LITERAL_break:
-//            case GroovyTokenTypes.LITERAL_byte:
-//            case GroovyTokenTypes.LITERAL_case:
-//            case GroovyTokenTypes.LITERAL_catch:
-//            case GroovyTokenTypes.LITERAL_char:
-//            case GroovyTokenTypes.LITERAL_class:
-//            case GroovyTokenTypes.LITERAL_continue:
-//            case GroovyTokenTypes.LITERAL_def:
-//            case GroovyTokenTypes.LITERAL_default:
-//            case GroovyTokenTypes.LITERAL_double:
-//            case GroovyTokenTypes.LITERAL_else:
-//            case GroovyTokenTypes.LITERAL_enum:
-//            case GroovyTokenTypes.LITERAL_extends:
-//            case GroovyTokenTypes.LITERAL_false:
-//            case GroovyTokenTypes.LITERAL_finally:
-//            case GroovyTokenTypes.LITERAL_float:
-//            case GroovyTokenTypes.LITERAL_for:
-//            case GroovyTokenTypes.LITERAL_if:
-//            case GroovyTokenTypes.LITERAL_implements:
-//            case GroovyTokenTypes.LITERAL_import:
-//            case GroovyTokenTypes.LITERAL_in:
-//            case GroovyTokenTypes.LITERAL_instanceof:
-//            case GroovyTokenTypes.LITERAL_int:
-//            case GroovyTokenTypes.LITERAL_interface:
-//            case GroovyTokenTypes.LITERAL_long:
-//            case GroovyTokenTypes.LITERAL_native:
-//            case GroovyTokenTypes.LITERAL_new:
-//            case GroovyTokenTypes.LITERAL_null:
-//            case GroovyTokenTypes.LITERAL_package:
-//            case GroovyTokenTypes.LITERAL_private:
-//            case GroovyTokenTypes.LITERAL_protected:
-//            case GroovyTokenTypes.LITERAL_public:
-//            case GroovyTokenTypes.LITERAL_return:
-//            case GroovyTokenTypes.LITERAL_short:
-//            case GroovyTokenTypes.LITERAL_static:
-//            case GroovyTokenTypes.LITERAL_super:
-//            case GroovyTokenTypes.LITERAL_switch:
-//            case GroovyTokenTypes.LITERAL_synchronized:
-//            case GroovyTokenTypes.LITERAL_this:
-//            case GroovyTokenTypes.LITERAL_threadsafe:
-//            case GroovyTokenTypes.LITERAL_throw:
-//            case GroovyTokenTypes.LITERAL_throws:
-//            case GroovyTokenTypes.LITERAL_transient:
-//            case GroovyTokenTypes.LITERAL_true:
-//            case GroovyTokenTypes.LITERAL_try:
-//            case GroovyTokenTypes.LITERAL_void:
-//            case GroovyTokenTypes.LITERAL_volatile:
-//            case GroovyTokenTypes.LITERAL_while:
-//            case GroovyTokenTypes.PACKAGE_DEF:
-//            case GroovyTokenTypes.UNUSED_CONST:
-//            case GroovyTokenTypes.UNUSED_DO:
-//            case GroovyTokenTypes.UNUSED_GOTO:
-//            case GroovyTokenTypes.TYPE:
-//                return "keyword";
-//
-//            default:
-//                return null;
-//        }
-//    }
-
-//    private int length (GroovySourceToken token){
-//        int offset1 = codeArea.getDocument().position(token.getLine() - 1, token.getColumn() - 1).toOffset();
-//        int offset2 = codeArea.getDocument().position(token.getLineLast() - 1, token.getColumnLast() - 1).toOffset();
-//        return offset2 - offset1;
-//    }
-
-//    private void buildStyle (String styleClass, StyleSpansBuilder < Collection < String >> spansBuilder,
-//                             int length, Token token){
-//        if (styleClass != null) {
-//            spansBuilder.add(Collections.singleton(styleClass), length);
-//        } else if (!KEYWORDS_LOADER.getServices().isEmpty()) {
-//            for (KeywordsProvider styleExtension : KEYWORDS_LOADER.getServices()) {
-//                String style = styleExtension.styleClass(token.getText());
-//                if (style != null) {
-//                    spansBuilder.add(Collections.singleton(style), length);
-//                } else {
-//                    spansBuilder.add(Collections.emptyList(), length);
-//                }
-//            }
-//        } else {
-//            spansBuilder.add(Collections.emptyList(), length);
-//        }
-//    }
-
-//    private StyleSpans<Collection<String>> computeHighlighting (String text){
-//        Stopwatch stopwatch = Stopwatch.createStarted();
-//
-//        boolean added = false;
-//        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-//        if (!text.isEmpty()) {
-//            SourceBuffer sourceBuffer = new SourceBuffer();
-//            try (UnicodeEscapingReader reader = new UnicodeEscapingReader(new StringReader(text), sourceBuffer)) {
-//                GroovyLexer lexer = new GroovyLexer(new UnicodeLexerSharedInputState(reader));
-//                lexer.setWhitespaceIncluded(true);
-//                TokenStream tokenStream = lexer.plumb();
-//                Token token = tokenStream.nextToken();
-//                while (token.getType() != Token.EOF_TYPE) {
-//                    String styleClass = styleClass(token.getType());
-//                    int length = length((GroovySourceToken) token);
-//                    buildStyle(styleClass, spansBuilder, length, token);
-//                    added = true;
-//                    token = tokenStream.nextToken();
-//                }
-//            } catch (IOException e) {
-//                throw new UncheckedIOException(e);
-//            } catch (TokenStreamException e) {
-//                LOGGER.trace(e.getMessage());
-//            }
-//        }
-//
-//        if (!added) {
-//            spansBuilder.add(Collections.emptyList(), 0);
-//        }
-//
-//        stopwatch.stop();
-//        LOGGER.trace("Highlighting of {} characters computed in {} ms", text.length(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
-//
-//        return spansBuilder.create();
-//    }
 }
