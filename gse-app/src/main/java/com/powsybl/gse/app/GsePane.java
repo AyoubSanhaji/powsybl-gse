@@ -19,7 +19,6 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
-import javafx.scene.Group;
 import javafx.scene.control.*;
 import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
@@ -140,7 +139,7 @@ public class GsePane extends StackPane {
         Popup popup = new Popup();
         popup.setAutoHide(true);
 
-        HashMap<String,String> shortcutsList = new HashMap<>();
+        HashMap<String, String> shortcutsList = new HashMap<>();
         shortcutsList.put("CTRL + Z", "Undo");
         shortcutsList.put("CTRL + Y", "Redo");
         shortcutsList.put("CTRL + X", "Cut");
@@ -169,7 +168,7 @@ public class GsePane extends StackPane {
         Iterator it = shortcutsList.entrySet().iterator();
         int i = 0;
         while (it.hasNext()) {
-            Map.Entry pair = (Map.Entry)it.next();
+            Map.Entry pair = (Map.Entry) it.next();
             Text text = new Text((String) pair.getKey());
             text.setStyle("-fx-font-weight: bold;");
             gridPane.add(text, 0, i);
