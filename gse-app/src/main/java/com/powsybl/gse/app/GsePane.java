@@ -16,12 +16,17 @@ import com.powsybl.gse.util.GseUtil;
 import com.powsybl.gse.util.NodeChooser;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.control.*;
 import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
@@ -148,12 +153,14 @@ public class GsePane extends StackPane {
         shortcutsList.put("CTRL + S", "Save");
         shortcutsList.put("CTRL + F", "Find");
         shortcutsList.put("CTRL + R", "Replace");
+        shortcutsList.put("ESC", "Close the Find/Replace toolbar");
         shortcutsList.put("CTRL + A", "Select All");
         shortcutsList.put("CTRL + /", "Comment Line");
         shortcutsList.put("CTRL + D", "Delete Line");
         shortcutsList.put("ALT + Down/Up", "Move Line");
         shortcutsList.put("CTRL + DEL", "Delete Next Word");
         shortcutsList.put("CTRL + SHIFT + Down/Up", "Duplicate Line/Word");
+        shortcutsList.put("CTRL + W", "Close file");
 
         GridPane gridPane = new GridPane();
         gridPane.setStyle("-fx-padding: 10;" +
@@ -220,14 +227,13 @@ public class GsePane extends StackPane {
         });
 
         MenuItem aboutMenuItem = new MenuItem(RESOURCE_BUNDLE.getString("About"));
-        MenuItem shortcutMenuItem = new MenuItem("Shortcuts");
+        MenuItem shortcutMenuItem = new MenuItem(RESOURCE_BUNDLE.getString("Shortcuts"));
         aboutMenuItem.setOnAction(event -> showAbout());
         shortcutMenuItem.setOnAction(event -> showShortcuts());
         contextMenu.getItems().add(aboutMenuItem);
         contextMenu.getItems().add(shortcutMenuItem);
 
         appBar.getHelpButton().setOnAction(event -> contextMenu.show(appBar.getHelpButton(), Side.BOTTOM, 0, 0));
-
         return appBar;
     }
 
