@@ -12,13 +12,13 @@ public class ImaGridSyntax extends GroovyTokenMaker {
 
     @Override
     public void addToken(char[] array, int start, int end, int tokenType, int startOffset, boolean hyperlink) {
+        int newType = tokenType;
         if (tokenType == TokenTypes.IDENTIFIER) {
-            int newType = extraTokens.get(array, start, end);
-            if (newType > -1) {
-                tokenType = newType;
+            if (extraTokens.get(array, start, end) > -1) {
+                newType = extraTokens.get(array, start, end);
             }
         }
-        super.addToken(array, start, end, tokenType, startOffset, hyperlink);
+        super.addToken(array, start, end, newType, startOffset, hyperlink);
     }
 
     public void clear() {
