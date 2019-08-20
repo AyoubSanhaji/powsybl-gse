@@ -76,27 +76,27 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         codeZone.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(java.awt.event.KeyEvent e) {
-            String input = Character.toString(e.getKeyChar());
-            if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0) {
-                codeZone.insert(String.valueOf("#{[|\\^@]€¤".charAt("\"'(-_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
-            }
-            if (e.getKeyChar() == KeyEvent.VK_SLASH && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
-                commentLines(codeZone.getSelectionStart(), codeZone.getSelectionEnd());
-            }
-            if (e.getKeyCode() == KeyEvent.VK_DELETE && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
-                e.consume();
-                deleteWord(codeZone.getCaretPosition());
-            }
-            int down = KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK;
-            if ((e.getKeyCode() == KeyEvent.VK_DOWN || e.getKeyCode() == KeyEvent.VK_UP) && (e.getModifiersEx() & down) == down) {
-                duplicateLine(codeZone.getSelectionStart(), codeZone.getSelectionEnd(), e.getKeyCode());
-            }
+                String input = Character.toString(e.getKeyChar());
+                if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0) {
+                    codeZone.insert(String.valueOf("#{[|\\^@]€¤".charAt("\"'(-_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
+                }
+                if (e.getKeyChar() == KeyEvent.VK_SLASH && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                    commentLines(codeZone.getSelectionStart(), codeZone.getSelectionEnd());
+                }
+                if (e.getKeyCode() == KeyEvent.VK_DELETE && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                    e.consume();
+                    deleteWord(codeZone.getCaretPosition());
+                }
+                int down = KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK;
+                if ((e.getKeyCode() == KeyEvent.VK_DOWN || e.getKeyCode() == KeyEvent.VK_UP) && (e.getModifiersEx() & down) == down) {
+                    duplicateLine(codeZone.getSelectionStart(), codeZone.getSelectionEnd(), e.getKeyCode());
+                }
             }
         });
 
         // Adding keywords highlighting
         AbstractTokenMakerFactory atmf = (AbstractTokenMakerFactory) TokenMakerFactory.getDefaultInstance();
-        atmf.putMapping("text/myLanguage", "com.powsybl.gse.util.imaGridSyntax");
+        atmf.putMapping("text/myLanguage", "com.powsybl.gse.util.ImaGridSyntax");
         codeZone.setSyntaxEditingStyle("text/myLanguage");
 
         // Autocompletion treatment (Static)
@@ -155,10 +155,9 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
             @Override
             public void keyPressed(KeyEvent e) {
                 if ((e.getKeyCode() == KeyEvent.VK_F || e.getKeyCode() == KeyEvent.VK_R) && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
-                    if(getCodeZone().getSelectedText() != null) {
+                    if (getCodeZone().getSelectedText() != null) {
                         findToolBar.getSearchContext().setSearchFor(getCodeZone().getSelectedText());
-                    }
-                    else {
+                    } else {
                         findToolBar.getSearchContext().setSearchFor("");
                         replaceToolBar.getSearchContext().setSearchFor("");
                     }
@@ -168,9 +167,9 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
 
         // Handle the ESC pressing used to close the search toolbars
         swingNode.setOnKeyPressed(event -> {
-            if(event.getCode().compareTo(KeyCode.ESCAPE) == 0) {
+            if (event.getCode().compareTo(KeyCode.ESCAPE) == 0) {
                 findToolBar.getSearchContext().setSearchFor("");
-                SearchEngine.markAll(getCodeZone(),findToolBar.getSearchContext());
+                SearchEngine.markAll(getCodeZone(), findToolBar.getSearchContext());
             }
         });
 
@@ -222,14 +221,13 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
             int lineNumberStart = getCodeZone().getLineOfOffset(start);
             int lineNumberEnd = getCodeZone().getLineOfOffset(end);
             boolean sameType = isSameType(start, end);
-            for (int i = lineNumberStart ; i <= lineNumberEnd ; i++) {
+            for (int i = lineNumberStart; i <= lineNumberEnd; i++) {
                 int lineIndexStart = getCodeZone().getLineStartOffset(i);
                 int lineIndexEnd = getCodeZone().getLineEndOffset(i);
-                int beginWithSlashes = beginsWith(getCodeZone().getText(lineIndexStart, lineIndexEnd-lineIndexStart));
+                int beginWithSlashes = beginsWith(getCodeZone().getText(lineIndexStart, lineIndexEnd - lineIndexStart));
                 if (beginWithSlashes != -1 && sameType) {
-                    getCodeZone().replaceRange("", lineIndexStart+beginWithSlashes, lineIndexStart+beginWithSlashes+2);
-                }
-                else {
+                    getCodeZone().replaceRange("", lineIndexStart + beginWithSlashes, lineIndexStart + beginWithSlashes + 2);
+                } else {
                     getCodeZone().replaceRange("//", lineIndexStart, lineIndexStart);
                 }
             }
@@ -269,9 +267,9 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
      * @return the index of the first slash if exists else return -1
      */
     private int beginsWith(String line) {
-        for (int i = 0 ; i < line.length()-1 ; i++) {
+        for (int i = 0; i < line.length() - 1; i++) {
             if (line.charAt(i) == ' ' || line.charAt(i) == '\t' || line.charAt(i) == '/') {
-                if ("//".equals(line.substring(i, i+2))) {
+                if ("//".equals(line.substring(i, i + 2))) {
                     return i;
                 }
             } else {
@@ -426,11 +424,13 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
      */
     private static class StatusBar extends JPanel {
         private JLabel label;
+
         StatusBar() {
             label = new JLabel("Ready");
             setLayout(new BorderLayout());
             add(label);
         }
+
         void setLabel(String label) {
             this.label.setText(label);
         }

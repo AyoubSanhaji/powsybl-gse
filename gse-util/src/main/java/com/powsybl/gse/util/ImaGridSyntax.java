@@ -3,10 +3,10 @@ package com.powsybl.gse.util;
 import org.fife.ui.rsyntaxtextarea.*;
 import org.fife.ui.rsyntaxtextarea.modes.GroovyTokenMaker;
 
-public class imaGridSyntax extends GroovyTokenMaker {
+public class ImaGridSyntax extends GroovyTokenMaker {
     static TokenMap extraTokens;
 
-    public imaGridSyntax() {
+    public ImaGridSyntax() {
         extraTokens = getKeywords();
     }
 
