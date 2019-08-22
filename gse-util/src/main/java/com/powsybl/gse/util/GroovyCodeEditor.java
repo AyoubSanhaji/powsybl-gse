@@ -219,12 +219,12 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         provider.addCompletion(new BasicCompletion(provider, "unmappedBoundaryLines"));
         provider.addCompletion(new BasicCompletion(provider, "unmappedBreakers"));
         provider.addCompletion(new BasicCompletion(provider, "variable"));
-        provider.addCompletion(new BasicCompletion(provider,"timeSeriesName"));
-        provider.addCompletion(new BasicCompletion(provider,"filter"));
-        provider.addCompletion(new BasicCompletion(provider,"distributionKey"));
-        provider.addCompletion(new BasicCompletion(provider,"timeSeries"));
-        provider.addCompletion(new BasicCompletion(provider,"ts"));
-        provider.addCompletion(new BasicCompletion(provider,"ignoreLimits"));
+        provider.addCompletion(new BasicCompletion(provider, "timeSeriesName"));
+        provider.addCompletion(new BasicCompletion(provider, "filter"));
+        provider.addCompletion(new BasicCompletion(provider, "distributionKey"));
+        provider.addCompletion(new BasicCompletion(provider, "timeSeries"));
+        provider.addCompletion(new BasicCompletion(provider, "ts"));
+        provider.addCompletion(new BasicCompletion(provider, "ignoreLimits"));
 
         return provider;
     }
