@@ -37,6 +37,7 @@ import java.util.ResourceBundle;
 
 /**
  * @author Geoffroy Jamgotchian <geoffroy.jamgotchian at rte-france.com>
+ * @author Ayoub SANHAJI <sanhaji.ayoub at gmail.com>
  */
 public class ModificationScriptEditor extends BorderPane
         implements ProjectFileViewer, Savable, ScriptListener {
@@ -48,14 +49,6 @@ public class ModificationScriptEditor extends BorderPane
     private final GseContext context;
 
     private final ToolBar toolBar;
-
-//    private final ToolBar bottomToolBar;
-//
-//    private final ComboBox<Integer> comboBox;
-//
-//    private final Label tabSizeLabel;
-
-    private Label caretPositionDisplay;
 
     private final Button saveButton;
 
@@ -84,34 +77,23 @@ public class ModificationScriptEditor extends BorderPane
         saveButton.disableProperty().bind(saved);
         saveButton.setOnAction(event -> save());
 
-//        comboBox = new ComboBox(FXCollections.observableArrayList(2, 4, 8));
-//        comboBox.getSelectionModel().select(1);
-//        comboBox.getSelectionModel().selectedIndexProperty().addListener(e -> codeEditor.setTabSize(comboBox.getSelectionModel().getSelectedItem()));
-//        tabSizeLabel = new Label(RESOURCE_BUNDLE.getString("TabSize") + ": ");
-//
-        //caretPositionDisplay = new Label(codeEditor.currentPosition());
-        //codeEditor.caretPositionProperty().addListener((observable, oldValue, newValue) -> caretPositionDisplay.setText(codeEditor.currentPosition()));
         codeEditorWithProgressIndicator = new StackPane(codeEditor, new Group(progressIndicator));
-        //codeEditor.codeProperty().addListener((observable, oldValue, newValue) -> saved.set(false));
         codeEditor.getCodeZone().addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                Platform.runLater(() -> saved.set(!codeEditor.hasUnsavedChanges()));
-                if (e.getKeyCode() == KeyEvent.VK_S && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                if (e.getKeyCode() == KeyEvent.VK_S && e.isControlDown()) {
                     save();
+                } else {
+                    Platform.runLater(() -> saved.set(!codeEditor.hasUnsavedChanges()));
                 }
             }
         });
 
         splitPane = new SplitPane(codeEditorWithProgressIndicator);
         toolBar = new ToolBar(saveButton);
-        //Pane spacer = new Pane();
-//        bottomToolBar = new ToolBar(tabSizeLabel, comboBox, spacer, caretPositionDisplay);
-//        bottomToolBar.widthProperty().addListener((observable, oldvalue, newvalue) -> spacer.setPadding(new Insets(0, (double) newvalue - 280, 0, 0)));
         splitPane.setOrientation(Orientation.VERTICAL);
         splitPane.setDividerPosition(0, 0.8);
         setTop(toolBar);
-        //setBottom(bottomToolBar);
         setCenter(splitPane);
         // listen to modifications
         storableScript.addListener(this);

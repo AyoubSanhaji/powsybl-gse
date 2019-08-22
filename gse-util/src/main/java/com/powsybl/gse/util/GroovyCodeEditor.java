@@ -16,10 +16,7 @@ import org.fife.rsta.ui.search.FindToolBar;
 import org.fife.rsta.ui.search.ReplaceToolBar;
 import org.fife.rsta.ui.search.SearchEvent;
 import org.fife.rsta.ui.search.SearchListener;
-import org.fife.ui.autocomplete.AutoCompletion;
-import org.fife.ui.autocomplete.BasicCompletion;
-import org.fife.ui.autocomplete.CompletionProvider;
-import org.fife.ui.autocomplete.DefaultCompletionProvider;
+import org.fife.ui.autocomplete.*;
 import org.fife.ui.rsyntaxtextarea.*;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.fife.ui.rtextarea.SearchContext;
@@ -32,11 +29,14 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.util.ResourceBundle;
 
 /**
- * @author Geoffroy Jamgotchian <sanhaji.ayoub at gmail.com>
+ * @author Ayoub SANHAJI <sanhaji.ayoub at gmail.com>
  */
 public class GroovyCodeEditor extends MasterDetailPane implements SearchListener {
+    private static final ResourceBundle RESOURCE_BUNDLE = ResourceBundle.getBundle("lang.GroovyCodeEditor");
+
     private SwingNode swingNode;
     private JPanel panelSwing = new JPanel(new BorderLayout());
     private final Integer[] tabSizes = new Integer[]{2, 4, 6, 8};
@@ -59,7 +59,6 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         codeZone = new TextEditorPane();
         codeZone.setRows(100);
         codeZone.setColumns(45);
-        codeZone.setLineWrap(true);
         // Tabulation size
         codeZone.setTabSize(4);
         // Is called when the caret stops moving after a short period to show all the occurrences
@@ -77,13 +76,13 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
             @Override
             public void keyPressed(java.awt.event.KeyEvent e) {
                 String input = Character.toString(e.getKeyChar());
-                if ("\"'(-_çà)e$".contains(input) && (e.getModifiers() & java.awt.event.KeyEvent.ALT_MASK) != 0) {
-                    codeZone.insert(String.valueOf("#{[|\\^@]€¤".charAt("\"'(-_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
+                if ("é\"'(-è_çà)e$".contains(input) && (e.isAltDown() || e.isAltGraphDown())) {
+                    codeZone.insert(String.valueOf("~#{[|`\\^@]€¤".charAt("é\"'(-è_çà)e$".indexOf(e.getKeyChar()))), codeZone.getCaretPosition());
                 }
-                if (e.getKeyChar() == KeyEvent.VK_SLASH && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                if (e.getKeyChar() == KeyEvent.VK_SLASH && e.isControlDown()) {
                     commentLines(codeZone.getSelectionStart(), codeZone.getSelectionEnd());
                 }
-                if (e.getKeyCode() == KeyEvent.VK_DELETE && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                if (e.getKeyCode() == KeyEvent.VK_DELETE && e.isControlDown()) {
                     e.consume();
                     deleteWord(codeZone.getCaretPosition());
                 }
@@ -99,7 +98,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         atmf.putMapping("text/myLanguage", "com.powsybl.gse.util.ImaGridSyntax");
         codeZone.setSyntaxEditingStyle("text/myLanguage");
 
-        // Autocompletion treatment (Static)
+        // Autocompletion treatment
         CompletionProvider provider = createCompletionProvider();
         AutoCompletion ac = new AutoCompletion(provider);
         ac.install(codeZone);
@@ -108,6 +107,8 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         ac.setAutoActivationEnabled(true); //removes the need to input ctrl+space for autocomplete
         ac.setAutoCompleteSingleChoices(false); //single choices are not automatically inputted
         ac.setAutoActivationDelay(0);
+        // Just for the moment since we have some pbs with the autocompletion window
+        ac.uninstall();
 
         // Editor Pane
         editor = new RTextScrollPane(codeZone);
@@ -136,11 +137,19 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         setTabSize(2);
         tabSize.addActionListener(e -> setTabSize((int) tabSize.getSelectedItem()));
 
-        JPanel bottomPane = new JPanel(new FlowLayout(FlowLayout.LEADING));
-        bottomPane.add(new JLabel("Tabulation Size: "));
-        bottomPane.add(tabSize);
-        bottomPane.add(statusBar);
+        JPanel bottomPane = new JPanel(new BorderLayout());
+        bottomPane.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
 
+        JPanel tabulationManager = new JPanel();
+        tabulationManager.add(new JLabel(RESOURCE_BUNDLE.getString("TabulationSize")));
+        tabulationManager.add(tabSize);
+
+        bottomPane.add(tabulationManager, BorderLayout.WEST);
+        JLabel caretPosition = new JLabel(getCaretPosition());
+        caretPosition.setHorizontalAlignment(JTextField.CENTER);
+        bottomPane.add(caretPosition, BorderLayout.CENTER);
+        getCodeZone().addCaretListener(e -> caretPosition.setText(getCaretPosition()));
+        bottomPane.add(statusBar, BorderLayout.EAST);
         panelSwing.add(bottomPane, BorderLayout.SOUTH);
 
         swingNode.setContent(panelSwing);
@@ -154,7 +163,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         getCodeZone().addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if ((e.getKeyCode() == KeyEvent.VK_F || e.getKeyCode() == KeyEvent.VK_R) && (e.getModifiers() & KeyEvent.CTRL_MASK) != 0) {
+                if ((e.getKeyCode() == KeyEvent.VK_F || e.getKeyCode() == KeyEvent.VK_R) && e.isControlDown()) {
                     if (getCodeZone().getSelectedText() != null) {
                         findToolBar.getSearchContext().setSearchFor(getCodeZone().getSelectedText());
                     } else {
@@ -170,6 +179,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
             if (event.getCode().compareTo(KeyCode.ESCAPE) == 0) {
                 findToolBar.getSearchContext().setSearchFor("");
                 SearchEngine.markAll(getCodeZone(), findToolBar.getSearchContext());
+                statusBar.setLabel(RESOURCE_BUNDLE.getString("Ready"));
             }
         });
 
@@ -198,17 +208,38 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         //new FunctionCompletion()
         //new VariableCompletion()
         //new ShorthandCompletion()
+        provider.addCompletion(new BasicCompletion(provider, "mapToGenerators"));
+        provider.addCompletion(new BasicCompletion(provider, "mapToLoads"));
+        provider.addCompletion(new BasicCompletion(provider, "mapToHvdcLines"));
+        provider.addCompletion(new BasicCompletion(provider, "mapToBoundaryLines"));
+        provider.addCompletion(new BasicCompletion(provider, "mapToBreakers"));
+        provider.addCompletion(new BasicCompletion(provider, "unmappedGenerators"));
+        provider.addCompletion(new BasicCompletion(provider, "unmappedLoads"));
+        provider.addCompletion(new BasicCompletion(provider, "unmappedHvdcLines"));
+        provider.addCompletion(new BasicCompletion(provider, "unmappedBoundaryLines"));
+        provider.addCompletion(new BasicCompletion(provider, "unmappedBreakers"));
+        provider.addCompletion(new BasicCompletion(provider, "variable"));
+        provider.addCompletion(new BasicCompletion(provider,"timeSeriesName"));
+        provider.addCompletion(new BasicCompletion(provider,"filter"));
+        provider.addCompletion(new BasicCompletion(provider,"distributionKey"));
+        provider.addCompletion(new BasicCompletion(provider,"timeSeries"));
+        provider.addCompletion(new BasicCompletion(provider,"ts"));
+        provider.addCompletion(new BasicCompletion(provider,"ignoreLimits"));
 
-        provider.addCompletion(new BasicCompletion(provider, "mapToLoad"));
-        provider.addCompletion(new BasicCompletion(provider, "mapToGenerator"));
-        provider.addCompletion(new BasicCompletion(provider, "network.test1"));
-        provider.addCompletion(new BasicCompletion(provider, "network.test2"));
         return provider;
     }
 
     @Override
     public String getSelectedText() {
         return getCodeZone().getSelectedText();
+    }
+
+    /**
+     * Get the caret position 'rowNumber : columnNumber'
+     * @return
+     */
+    private String getCaretPosition() {
+        return (getCodeZone().getCaretLineNumber() + 1) + ":" + (getCodeZone().getCaretOffsetFromLineStart() + 1);
     }
 
     /**
@@ -379,20 +410,20 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
                 break;
             case REPLACE_ALL:
                 result = SearchEngine.replaceAll(getCodeZone(), context);
-                showMessageDialog(null, result.getCount() + " occurrences replaced.");
+                showMessageDialog(null, result.getCount() + RESOURCE_BUNDLE.getString("Replaced"));
                 break;
         }
         String text;
         if (result.wasFound()) {
-            text = "Text found; occurrences marked: " + result.getMarkedCount();
+            text = RESOURCE_BUNDLE.getString("Marked1") + result.getMarkedCount();
         } else if (type == SearchEvent.Type.MARK_ALL) {
             if (result.getMarkedCount() > 0) {
-                text = "Occurrences marked: " + result.getMarkedCount();
+                text = RESOURCE_BUNDLE.getString("Marked2") + result.getMarkedCount();
             } else {
                 text = "";
             }
         } else {
-            text = "Text not found";
+            text = RESOURCE_BUNDLE.getString("NotFound");
         }
         statusBar.setLabel(text);
     }
@@ -426,7 +457,7 @@ public class GroovyCodeEditor extends MasterDetailPane implements SearchListener
         private JLabel label;
 
         StatusBar() {
-            label = new JLabel("Ready");
+            label = new JLabel(RESOURCE_BUNDLE.getString("Ready"));
             setLayout(new BorderLayout());
             add(label);
         }

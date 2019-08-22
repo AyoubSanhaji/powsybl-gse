@@ -9,6 +9,8 @@ package com.powsybl.gse.demo;
 import com.powsybl.gse.app.GseApp;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
+import java.util.Locale;
+
 /**
  * @author Geoffroy Jamgotchian <geoffroy.jamgotchian at rte-france.com>
  */
@@ -20,6 +22,7 @@ public final class GseDemo {
     public static void main(String[] args) {
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
+        //Locale.setDefault(new Locale("FR"));
 
         GseApp.main(args);
     }

@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 
 /**
  * @author Geoffroy Jamgotchian <geoffroy.jamgotchian at rte-france.com>
+ * @author Ayoub SANHAJI <sanhaji.ayoub at gmail.com>
  */
 public class GsePane extends StackPane {
 
@@ -139,34 +140,27 @@ public class GsePane extends StackPane {
         Popup popup = new Popup();
         popup.setAutoHide(true);
 
-        HashMap<String, String> shortcutsList = new HashMap<>();
-        shortcutsList.put("CTRL + Z", "Undo");
-        shortcutsList.put("CTRL + Y", "Redo");
-        shortcutsList.put("CTRL + X", "Cut");
-        shortcutsList.put("CTRL + C", "Copy");
-        shortcutsList.put("CTRL + V", "Paste");
-        shortcutsList.put("CTRL + S", "Save");
-        shortcutsList.put("CTRL + F", "Find");
-        shortcutsList.put("CTRL + R", "Replace");
-        shortcutsList.put("ESC", "Close the Find/Replace toolbar");
-        shortcutsList.put("CTRL + A", "Select All");
-        shortcutsList.put("CTRL + /", "Comment Line");
-        shortcutsList.put("CTRL + D", "Delete Line");
-        shortcutsList.put("ALT + Down/Up", "Move Line");
-        shortcutsList.put("CTRL + DEL", "Delete Next Word");
-        shortcutsList.put("CTRL + SHIFT + Down/Up", "Duplicate Line/Word");
-        shortcutsList.put("CTRL + W", "Close file");
+        HashMap<String, String> shortcutsList = new LinkedHashMap<>();
+        shortcutsList.put("CTRL + W", RESOURCE_BUNDLE.getString("CloseFile"));
+        shortcutsList.put("CTRL + S", RESOURCE_BUNDLE.getString("Save"));
+        shortcutsList.put("CTRL + Z", RESOURCE_BUNDLE.getString("Undo"));
+        shortcutsList.put("CTRL + Y", RESOURCE_BUNDLE.getString("Redo"));
+        shortcutsList.put("CTRL + X", RESOURCE_BUNDLE.getString("Cut"));
+        shortcutsList.put("CTRL + C", RESOURCE_BUNDLE.getString("Copy"));
+        shortcutsList.put("CTRL + V", RESOURCE_BUNDLE.getString("Paste"));
+        shortcutsList.put("DELETE", RESOURCE_BUNDLE.getString("Delete"));
+        shortcutsList.put("CTRL + F", RESOURCE_BUNDLE.getString("Find"));
+        shortcutsList.put("CTRL + R", RESOURCE_BUNDLE.getString("Replace"));
+        shortcutsList.put("ESC", RESOURCE_BUNDLE.getString("CloseFR"));
+        shortcutsList.put("CTRL + A", RESOURCE_BUNDLE.getString("SelectAll"));
+        shortcutsList.put("CTRL + DEL", RESOURCE_BUNDLE.getString("DeleteNextWord"));
+        shortcutsList.put("CTRL + /", RESOURCE_BUNDLE.getString("CommentLine"));
+        shortcutsList.put("CTRL + D", RESOURCE_BUNDLE.getString("DeleteLine"));
+        shortcutsList.put("ALT + Down/Up", RESOURCE_BUNDLE.getString("MoveLine"));
+        shortcutsList.put("CTRL + SHIFT + Down/Up", RESOURCE_BUNDLE.getString("DuplicateLW"));
 
         GridPane gridPane = new GridPane();
-        gridPane.setStyle("-fx-padding: 10;" +
-                "-fx-border-style: solid inside;" +
-                "-fx-border-width: 2;" +
-                "-fx-border-radius: 5;" +
-                "-fx-border-color: DeepSkyBlue;");
-        gridPane.setBackground(new Background(new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, Insets.EMPTY)));
-        gridPane.setAlignment(Pos.CENTER);
-        gridPane.setHgap(50);
-        gridPane.setVgap(10);
+        gridPane.getStyleClass().add("shortcuts");
         Iterator it = shortcutsList.entrySet().iterator();
         int i = 0;
         while (it.hasNext()) {

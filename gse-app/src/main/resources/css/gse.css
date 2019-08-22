@@ -137,3 +137,16 @@
 .replace-button : hover {
     -fx-fill: lightgrey;
 }
+
+.shortcuts {
+    -fx-padding: 10;
+    -fx-hgap: 50px;
+    -fx-vgap: 10px;
+    -fx-border-style: solid inside;
+    -fx-border-width: 4;
+    -fx-border-radius: 10;
+    -fx-border-color: DeepSkyBlue;
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.8), 10, 0, 0, 0);
+}
